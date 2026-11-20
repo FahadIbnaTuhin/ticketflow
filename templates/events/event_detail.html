@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ event.name }} | TicketFlow</title>
+  </head>
+  <body>
+    <main>
+      <h1>{{ event.name }}</h1>
+      <p>{{ event.description }}</p>
+      <p>{{ event.venue }}, {{ event.city }}</p>
+      <p>{{ event.event_date }} at {{ event.start_time }}</p>
+      <p>{{ event.seat_map_rows }} rows, {{ event.seats_per_row }} seats per row</p>
+      <p>Pricing strategy: {{ event.get_pricing_strategy_display }}</p>
+      <p>Organized by {{ event.organizer.username }}</p>
+      {% if user == event.organizer %}
+        <p><a href="{% url 'events:update' event.pk %}">Edit event</a></p>
+        <p><a href="{% url 'events:category-list' event.pk %}">Manage seat categories</a></p>
+      {% endif %}
+      <h2>Seat map and pricing</h2>
+      {% for row_number, seats in seat_rows %}
+        <section aria-label="Row {{ row_number }}">
+          <h3>Row {{ row_number }}</h3>
+          <ul>
+            {% for seat in seats %}
+              <li>
+                Seat {{ seat.seat_number }} —
+                {{ seat.category.name|default:"Uncategorized" }} —
+                {% if seat.current_price is not None %}
+                  {{ seat.current_price }}
+                {% else %}
+                  Price unavailable
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% empty %}
+        <p>No seats are available for this event.</p>
+      {% endfor %}
+      <p><a href="{% url 'events:list' %}">Back to events</a></p>
+    </main>
+  </body>
+</html>

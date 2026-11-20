@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Create account | TicketFlow</title>
+  </head>
+  <body>
+    <main>
+      <h1>Create a customer account</h1>
+      <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Register</button>
+      </form>
+      <p><a href="{% url 'accounts:login' %}">Already registered? Log in</a></p>
+    </main>
+  </body>
+</html>

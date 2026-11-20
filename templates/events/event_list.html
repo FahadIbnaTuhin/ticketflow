@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Events | TicketFlow</title>
+  </head>
+  <body>
+    <main>
+      <h1>Events</h1>
+      <form method="get">
+        <label for="event-search">Search events</label>
+        <input
+          id="event-search"
+          type="search"
+          name="q"
+          value="{{ search_query }}"
+        >
+
+        <label for="event-city">City</label>
+        <select id="event-city" name="city">
+          <option value="">All cities</option>
+          {% for city in cities %}
+            <option value="{{ city }}"{% if selected_city|lower == city|lower %} selected{% endif %}>
+              {{ city }}
+            </option>
+          {% endfor %}
+        </select>
+
+        <label for="event-date">Date</label>
+        <input
+          id="event-date"
+          type="date"
+          name="date"
+          value="{{ selected_date }}"
+        >
+
+        <button type="submit">Search</button>
+      </form>
+
+      {% for event in events %}
+        <article>
+          <h2><a href="{% url 'events:detail' event.pk %}">{{ event.name }}</a></h2>
+          <p>{{ event.city }} · {{ event.event_date }} at {{ event.start_time }}</p>
+          <p>{{ event.venue }}</p>
+        </article>
+      {% empty %}
+        <p>No events match your search.</p>
+      {% endfor %}
+
+      {% if page_obj.has_other_pages %}
+        <nav aria-label="Event pages">
+          {% if page_obj.has_previous %}
+            <a href="?{% if query_string %}{{ query_string }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">
+              Previous
+            </a>
+          {% endif %}
+          <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+          {% if page_obj.has_next %}
+            <a href="?{% if query_string %}{{ query_string }}&amp;{% endif %}page={{ page_obj.next_page_number }}">
+              Next
+            </a>
+          {% endif %}
+        </nav>
+      {% endif %}
+
+      {% if user.is_authenticated and user.role == "organizer" %}
+        <p><a href="{% url 'events:organizer-list' %}">Manage my events</a></p>
+      {% endif %}
+    </main>
+  </body>
+</html>

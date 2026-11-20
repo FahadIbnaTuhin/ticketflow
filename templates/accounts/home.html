@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TicketFlow account</title>
+  </head>
+  <body>
+    <main>
+      <h1>Welcome, {{ user.get_username }}</h1>
+      <p>Your role: {{ user.get_role_display }}</p>
+      <form method="post" action="{% url 'accounts:logout' %}">
+        {% csrf_token %}
+        <button type="submit">Log out</button>
+      </form>
+    </main>
+  </body>
+</html>

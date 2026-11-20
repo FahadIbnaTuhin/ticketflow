@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Manage events | TicketFlow</title>
+  </head>
+  <body>
+    <main>
+      <h1>My events</h1>
+      <p><a href="{% url 'events:create' %}">Create an event</a></p>
+      {% for event in events %}
+        <article>
+          <h2><a href="{% url 'events:detail' event.pk %}">{{ event.name }}</a></h2>
+          <p>{{ event.city }} · {{ event.event_date }} at {{ event.start_time }}</p>
+          <a href="{% url 'events:update' event.pk %}">Edit</a>
+          <form method="post" action="{% url 'events:delete' event.pk %}">
+            {% csrf_token %}
+            <button type="submit">Delete</button>
+          </form>
+        </article>
+      {% empty %}
+        <p>You have not created any events yet.</p>
+      {% endfor %}
+      <p><a href="{% url 'events:list' %}">Browse events</a></p>
+    </main>
+  </body>
+</html>

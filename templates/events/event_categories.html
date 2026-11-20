@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Seat categories | {{ event.name }}</title>
+  </head>
+  <body>
+    <main>
+      <h1>Seat categories for {{ event.name }}</h1>
+
+      <h2>Add category</h2>
+      <form method="post" action="{% url 'events:category-create' event.pk %}">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Add category</button>
+      </form>
+
+      <h2>Categories</h2>
+      <ul>
+        {% for category in categories %}
+          <li>
+            {{ category.name }} — base {{ category.base_price }}
+            {% if category.early_bird_price is not None %}
+              — early bird {{ category.early_bird_price }}
+            {% endif %}
+            <a href="{% url 'events:category-update' event.pk category.pk %}">Edit</a>
+            <form
+              method="post"
+              action="{% url 'events:category-delete' event.pk category.pk %}"
+              style="display: inline"
+            >
+              {% csrf_token %}
+              <button type="submit">Delete</button>
+            </form>
+          </li>
+        {% empty %}
+          <li>No categories have been created.</li>
+        {% endfor %}
+      </ul>
+
+      <h2>Assign seat categories</h2>
+      <p>Choose a category for each seat. Prices shown to customers use the event's current pricing strategy.</p>
+      {% for seat in seats %}
+        <form
+          method="post"
+          action="{% url 'events:seat-category-assign' event.pk seat.pk %}"
+        >
+          {% csrf_token %}
+          <label for="category-{{ seat.pk }}">
+            Row {{ seat.row_number }}, seat {{ seat.seat_number }}
+          </label>
+          <select id="category-{{ seat.pk }}" name="category_id" required>
+            {% for category in categories %}
+              <option
+                value="{{ category.pk }}"
+                {% if seat.category_id == category.pk %}selected{% endif %}
+              >
+                {{ category.name }} ({{ category.base_price }})
+              </option>
+            {% endfor %}
+          </select>
+          <button type="submit">Assign</button>
+        </form>
+      {% endfor %}
+
+      <p><a href="{% url 'events:detail' event.pk %}">View event and customer seat map</a></p>
+      <p><a href="{% url 'events:organizer-list' %}">Back to my events</a></p>
+    </main>
+  </body>
+</html>
