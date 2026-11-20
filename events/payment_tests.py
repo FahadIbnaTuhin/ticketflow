@@ -2,6 +2,7 @@ from datetime import date, time, timedelta
 from decimal import Decimal
 
 import pytest
+from django.conf import settings as django_settings
 from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -84,6 +85,7 @@ def test_mock_providers_are_rejected_in_production(provider_name):
         DJANGO_ENV="production",
         PAYMENT_PROVIDER=provider_name,
     ):
+        assert not django_settings.ALLOW_MOCK_PAYMENTS_IN_PRODUCTION
         with pytest.raises(
             PaymentProviderUnavailable,
             match="disabled in production",
@@ -91,13 +93,30 @@ def test_mock_providers_are_rejected_in_production(provider_name):
             get_payment_provider()
 
 
-def test_mock_providers_remain_available_outside_production():
+@pytest.mark.parametrize("provider_name", ["mock_success", "mock_failure"])
+def test_mock_providers_are_available_in_production_when_explicitly_enabled(
+    provider_name,
+):
+    with override_settings(
+        DJANGO_ENV="production",
+        PAYMENT_PROVIDER=provider_name,
+        ALLOW_MOCK_PAYMENTS_IN_PRODUCTION=True,
+    ):
+        assert get_payment_provider().name == provider_name
+
+
+@pytest.mark.parametrize("environment", ["development", "test"])
+@pytest.mark.parametrize("provider_name", ["mock_success", "mock_failure"])
+def test_mock_providers_remain_available_outside_production(
+    environment, provider_name
+):
     with override_settings(
         DEBUG=False,
-        DJANGO_ENV="development",
-        PAYMENT_PROVIDER="mock_success",
+        DJANGO_ENV=environment,
+        PAYMENT_PROVIDER=provider_name,
+        ALLOW_MOCK_PAYMENTS_IN_PRODUCTION=False,
     ):
-        assert get_payment_provider().name == "mock_success"
+        assert get_payment_provider().name == provider_name
 
 
 @pytest.mark.django_db
@@ -110,6 +129,7 @@ def test_production_rejects_mock_payment_without_changing_booking(
     with override_settings(
         DJANGO_ENV="production",
         PAYMENT_PROVIDER="mock_success",
+        ALLOW_MOCK_PAYMENTS_IN_PRODUCTION=False,
     ):
         response = payment_request(client, booking, "production-mock-request")
 

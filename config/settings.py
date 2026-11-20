@@ -99,6 +99,9 @@ else:
     raise RuntimeError("DB_ENGINE must be either 'sqlite' or 'postgresql'.")
 
 PAYMENT_PROVIDER = os.getenv("PAYMENT_PROVIDER", "mock_success")
+ALLOW_MOCK_PAYMENTS_IN_PRODUCTION = (
+    os.getenv("ALLOW_MOCK_PAYMENTS_IN_PRODUCTION", "False").strip().lower() == "true"
+)
 EMAIL_BACKEND = os.getenv(
     "EMAIL_BACKEND",
     "django.core.mail.backends.console.EmailBackend",

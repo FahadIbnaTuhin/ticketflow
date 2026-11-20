@@ -81,11 +81,14 @@ request `Idempotency-Key`; it uses the booking's stored seat-price snapshots,
 not any client-supplied amount. Repeating the same key returns the existing
 payment result instead of creating or confirming a duplicate payment.
 
-Set `DJANGO_ENV=production` in production deployments. TicketFlow rejects both
-mock providers in that environment, so payment and refund requests fail closed
-until a non-mock provider is implemented and configured. Setting `DEBUG=False`
-alone does not select the production environment; configure `DJANGO_ENV`
-explicitly.
+Set `DJANGO_ENV=production` in production deployments. By default,
+`ALLOW_MOCK_PAYMENTS_IN_PRODUCTION=False` rejects both mock providers in that
+environment, so payment and refund requests fail closed. For the hosted
+assignment demo only, set `ALLOW_MOCK_PAYMENTS_IN_PRODUCTION=True` to opt in to
+the simulated success/failure outcomes. This option enables simulations only:
+it does not process real payments or refunds. Do not enable it for real-money
+sales. Setting `DEBUG=False` alone does not select the production environment;
+configure `DJANGO_ENV` explicitly.
 
 ## Notifications
 

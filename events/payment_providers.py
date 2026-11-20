@@ -90,7 +90,10 @@ def get_payment_provider(provider_name=None):
     provider_class = providers.get(selected_name)
     if provider_class is None:
         raise PaymentProviderUnavailable("The configured payment provider is unavailable.")
-    if settings.DJANGO_ENV == "production":
+    if (
+        settings.DJANGO_ENV == "production"
+        and not settings.ALLOW_MOCK_PAYMENTS_IN_PRODUCTION
+    ):
         raise PaymentProviderUnavailable(
             "Mock payment providers are disabled in production."
         )
