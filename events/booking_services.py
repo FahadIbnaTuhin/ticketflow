@@ -117,7 +117,7 @@ def create_booking_from_holds(*, event_id, hold_ids, customer):
                 )
 
             holds = list(
-                SeatHold.objects.select_for_update()
+                SeatHold.objects.select_for_update(of=("self",))
                 .filter(
                     pk__in=requested_ids,
                     seat__event_id=event_id,
