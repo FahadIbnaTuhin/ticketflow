@@ -1,19 +1,104 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Edit category | {{ event.name }}</title>
-  </head>
-  <body>
-    <main>
-      <h1>Edit {{ category.name }}</h1>
-      <form method="post">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">Save category</button>
-      </form>
-      <p><a href="{% url 'events:category-list' event.pk %}">Back to categories</a></p>
-    </main>
-  </body>
-</html>
+{% extends "base.html" %}
+
+{% block title %}Edit Category | {{ event.name }} | TicketFlow{% endblock %}
+
+{% block extra_head %}
+<style>
+  .category-hero {
+    background: radial-gradient(circle at top right, #1e1b4b 0%, #0f172a 75%, #020617 100%);
+    color: #ffffff;
+    padding: 2.5rem 0 2rem 0;
+    margin-bottom: 2rem;
+  }
+
+  .admin-card {
+    background: #ffffff;
+    border: 1px solid var(--tf-card-border);
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.05);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Hero Banner -->
+<section class="category-hero">
+  <div class="container">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-2" style="font-size: 0.85rem;">
+        <li class="breadcrumb-item"><a href="{% url 'home' %}" class="text-white-50 text-decoration-none">Home</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'events:organizer-list' %}" class="text-white-50 text-decoration-none">Organizer Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'events:category-list' event.pk %}" class="text-white-50 text-decoration-none">Seat Categories</a></li>
+        <li class="breadcrumb-item active text-white" aria-current="page">Edit {{ category.name }}</li>
+      </ol>
+    </nav>
+
+    <h1 class="h2 fw-bold mb-1 text-white d-flex align-items-center gap-2">
+      <i class="bi bi-pencil-square text-primary"></i>
+      <span>Edit Category: {{ category.name }}</span>
+    </h1>
+    <p class="text-white-50 mb-0 small">
+      Event: <strong>{{ event.name }}</strong>
+    </p>
+  </div>
+</section>
+
+<!-- Category Form Container -->
+<div class="container pb-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-6">
+      <div class="admin-card p-4 p-md-5">
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger py-2 small mb-3">
+              {{ form.non_field_errors }}
+            </div>
+          {% endif %}
+
+          <div class="mb-3">
+            <label for="{{ form.name.id_for_label }}" class="form-label small fw-semibold text-dark">
+              Category Name <span class="text-danger">*</span>
+            </label>
+            {{ form.name }}
+            {% if form.name.errors %}
+              <div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>
+            {% endif %}
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-sm-6">
+              <label for="{{ form.base_price.id_for_label }}" class="form-label small fw-semibold text-dark">
+                Base Price ($) <span class="text-danger">*</span>
+              </label>
+              {{ form.base_price }}
+              {% if form.base_price.errors %}
+                <div class="text-danger small mt-1">{{ form.base_price.errors.0 }}</div>
+              {% endif %}
+            </div>
+            <div class="col-sm-6">
+              <label for="{{ form.early_bird_price.id_for_label }}" class="form-label small fw-semibold text-dark">
+                Early Bird Price ($)
+              </label>
+              {{ form.early_bird_price }}
+              {% if form.early_bird_price.errors %}
+                <div class="text-danger small mt-1">{{ form.early_bird_price.errors.0 }}</div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="d-flex align-items-center justify-content-between pt-3 border-top">
+            <a href="{% url 'events:category-list' event.pk %}" class="btn btn-outline-secondary">
+              <i class="bi bi-arrow-left me-1"></i>Cancel
+            </a>
+            <button type="submit" class="btn btn-primary px-4 fw-semibold shadow-sm">
+              <i class="bi bi-check-circle me-1"></i>Save Category
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

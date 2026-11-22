@@ -44,8 +44,74 @@ def test_login_authenticates_user(client, django_user_model):
     )
 
     assert response.status_code == 302
-    assert response.url == reverse("accounts:home")
+    assert response.url == reverse("home")
     assert "_auth_user_id" in client.session
+
+
+@pytest.mark.django_db
+def test_login_preserves_safe_next_parameter(client, django_user_model):
+    user = django_user_model.objects.create_user(
+        username="customer",
+        password="StrongPassword123!",
+    )
+
+    response = client.post(
+        reverse("accounts:login") + "?next=/events/",
+        {"username": user.username, "password": "StrongPassword123!"},
+    )
+
+    assert response.status_code == 302
+    assert response.url == "/events/"
+    assert "_auth_user_id" in client.session
+
+
+@pytest.mark.django_db
+def test_authenticated_user_accessing_login_redirects_to_home(client, django_user_model):
+    user = django_user_model.objects.create_user(
+        username="customer",
+        password="StrongPassword123!",
+    )
+    client.force_login(user)
+
+    response = client.get(reverse("accounts:login"))
+
+    assert response.status_code == 302
+    assert response.url == reverse("home")
+
+
+@pytest.mark.django_db
+def test_authenticated_user_accessing_register_redirects_to_home(client, django_user_model):
+    user = django_user_model.objects.create_user(
+        username="customer",
+        password="StrongPassword123!",
+    )
+    client.force_login(user)
+
+    response = client.get(reverse("accounts:register"))
+
+    assert response.status_code == 302
+    assert response.url == reverse("home")
+
+
+@pytest.mark.django_db
+def test_auth_templates_extend_base_and_include_form_fields(client):
+    login_resp = client.get(reverse("accounts:login"))
+    assert login_resp.status_code == 200
+    templates = [t.name for t in login_resp.templates if t.name]
+    assert "accounts/login.html" in templates
+    assert "base.html" in templates
+    login_content = login_resp.content.decode()
+    assert "Log in" in login_content
+    assert "Create an account" in login_content
+
+    reg_resp = client.get(reverse("accounts:register"))
+    assert reg_resp.status_code == 200
+    reg_templates = [t.name for t in reg_resp.templates if t.name]
+    assert "accounts/register.html" in reg_templates
+    assert "base.html" in reg_templates
+    reg_content = reg_resp.content.decode()
+    assert "Create a customer account" in reg_content
+    assert "Already registered? Log in" in reg_content
 
 
 @pytest.mark.django_db

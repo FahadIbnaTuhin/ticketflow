@@ -1,0 +1,442 @@
+{% extends "base.html" %}
+
+{% block title %}Booking #TF-{{ booking.id }} | TicketFlow{% endblock %}
+
+{% block extra_head %}
+<style>
+  .booking-hero {
+    background: radial-gradient(circle at top right, #1e1b4b 0%, #0f172a 75%, #020617 100%);
+    color: #ffffff;
+    padding: 2.5rem 0 2rem 0;
+    margin-bottom: 2rem;
+  }
+
+  .detail-card {
+    background: #ffffff;
+    border: 1px solid var(--tf-card-border);
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.05);
+    overflow: hidden;
+  }
+
+  .badge-confirmed {
+    background-color: #dcfce7;
+    color: #15803d;
+    border: 1px solid #bbf7d0;
+  }
+
+  .badge-held {
+    background-color: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+  }
+
+  .badge-pending_payment {
+    background-color: #fef3c7;
+    color: #b45309;
+    border: 1px solid #fde68a;
+  }
+
+  .badge-cancelled {
+    background-color: #fee2e2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+  }
+
+  .badge-expired {
+    background-color: #f1f5f9;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+  }
+
+  .ticket-voucher {
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+    color: #ffffff;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .ticket-voucher::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 60px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.05) 0%, transparent 70%);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Hero -->
+<section class="booking-hero">
+  <div class="container">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-2" style="font-size: 0.85rem;">
+        <li class="breadcrumb-item"><a href="{% url 'home' %}" class="text-white-50 text-decoration-none">Home</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'events:booking-list' %}" class="text-white-50 text-decoration-none">My Bookings</a></li>
+        <li class="breadcrumb-item active text-white" aria-current="page">Booking #TF-{{ booking.id }}</li>
+      </ol>
+    </nav>
+
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+      <div>
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <span class="badge bg-white bg-opacity-10 text-white border border-white border-opacity-25 rounded-pill px-3 py-1 small">
+            Booking Reference #TF-{{ booking.id }}
+          </span>
+          {% if booking.status == "confirmed" %}
+            <span class="badge badge-confirmed px-3 py-1 rounded-pill fw-semibold">
+              <i class="bi bi-check-circle-fill me-1"></i>Confirmed
+            </span>
+          {% elif booking.status == "pending_payment" %}
+            <span class="badge badge-pending_payment px-3 py-1 rounded-pill fw-semibold">
+              <i class="bi bi-clock-fill me-1"></i>Pending Payment
+            </span>
+          {% elif booking.status == "held" %}
+            <span class="badge badge-held px-3 py-1 rounded-pill fw-semibold">
+              <i class="bi bi-hourglass-split me-1"></i>Held
+            </span>
+          {% elif booking.status == "cancelled" %}
+            <span class="badge badge-cancelled px-3 py-1 rounded-pill fw-semibold">
+              <i class="bi bi-x-circle-fill me-1"></i>Cancelled
+            </span>
+          {% elif booking.status == "expired" %}
+            <span class="badge badge-expired px-3 py-1 rounded-pill fw-semibold">
+              <i class="bi bi-slash-circle me-1"></i>Expired
+            </span>
+          {% endif %}
+        </div>
+        <h1 class="h2 fw-bold mb-1 text-white">{{ booking.event.name }}</h1>
+        <p class="text-white-50 mb-0 small">
+          Booked on {{ booking.created_at|date:"F j, Y, g:i a" }} · Customer: {{ booking.customer.get_full_name|default:booking.customer.username }}
+        </p>
+      </div>
+
+      <div class="d-flex gap-2">
+        <a href="{% url 'events:booking-list' %}" class="btn btn-outline-light btn-sm d-inline-flex align-items-center gap-2">
+          <i class="bi bi-arrow-left"></i>
+          <span>My Bookings</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Main Details -->
+<div class="container pb-5">
+  <div class="row g-4">
+    <!-- Left Column: Event & Seat Breakdown -->
+    <div class="col-lg-8">
+      <div class="d-flex flex-column gap-4">
+        <!-- Event Overview Card -->
+        <div class="detail-card p-4">
+          <h2 class="h6 fw-bold text-dark border-bottom pb-3 mb-3 d-flex align-items-center gap-2">
+            <i class="bi bi-calendar-event-fill text-primary"></i>
+            <span>Event Information</span>
+          </h2>
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <span class="text-muted small d-block mb-1">Event</span>
+              <strong class="text-dark d-block">
+                <a href="{% url 'events:detail' booking.event.pk %}" class="text-dark text-decoration-none">
+                  {{ booking.event.name }}
+                </a>
+              </strong>
+            </div>
+            <div class="col-sm-6">
+              <span class="text-muted small d-block mb-1">Date &amp; Time</span>
+              <strong class="text-dark d-block">
+                {{ booking.event.event_date|date:"l, F j, Y" }} at {{ booking.event.start_time|time:"g:i a" }}
+              </strong>
+            </div>
+            <div class="col-sm-6">
+              <span class="text-muted small d-block mb-1">Venue &amp; Location</span>
+              <span class="text-dark d-block fw-semibold">
+                {{ booking.event.venue }}, {{ booking.event.city }}
+              </span>
+            </div>
+            <div class="col-sm-6">
+              <span class="text-muted small d-block mb-1">Organizer</span>
+              <span class="text-dark d-block">
+                {{ booking.event.organizer.get_full_name|default:booking.event.organizer.username }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Seats & Price Breakdown Card -->
+        <div class="detail-card p-4">
+          <h2 class="h6 fw-bold text-dark border-bottom pb-3 mb-3 d-flex align-items-center gap-2">
+            <i class="bi bi-grid-3x3-gap-fill text-primary"></i>
+            <span>Reserved Seats &amp; Price Breakdown</span>
+          </h2>
+
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th scope="col" class="py-2">Seat</th>
+                  <th scope="col" class="py-2">Category</th>
+                  <th scope="col" class="py-2 text-end">Unit Price</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for bs in booking.booking_seats.all %}
+                  <tr>
+                    <td class="py-2">
+                      <span class="fw-bold text-dark">Row {{ bs.seat.row_number }}, Seat {{ bs.seat.seat_number }}</span>
+                    </td>
+                    <td class="py-2">
+                      <span class="badge bg-light text-secondary border">
+                        {{ bs.category_name|default:"General Admission" }}
+                      </span>
+                    </td>
+                    <td class="py-2 text-end fw-semibold text-dark">
+                      ${{ bs.unit_price }}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot class="border-top">
+                <tr>
+                  <td colspan="2" class="py-3 text-end fw-bold text-dark fs-6">Total Amount:</td>
+                  <td class="py-3 text-end fw-bold text-primary fs-5">${{ booking.total_price }}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <!-- Payment History Card -->
+        <div class="detail-card p-4">
+          <h2 class="h6 fw-bold text-dark border-bottom pb-3 mb-3 d-flex align-items-center gap-2">
+            <i class="bi bi-credit-card-2-front-fill text-primary"></i>
+            <span>Payment Details</span>
+          </h2>
+
+          {% if booking.payments.all %}
+            <div class="d-flex flex-column gap-3">
+              {% for payment in booking.payments.all %}
+                <div class="p-3 rounded-3 border bg-light d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+                  <div>
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                      <strong class="text-dark">Payment #{{ payment.id }}</strong>
+                      {% if payment.status == "succeeded" or payment.status == "success" %}
+                        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">Succeeded</span>
+                      {% elif payment.status == "processing" %}
+                        <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill">Processing</span>
+                      {% elif payment.status == "failed" %}
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill">Failed</span>
+                      {% endif %}
+                    </div>
+                    <span class="text-muted small d-block">
+                      Provider: <code>{{ payment.provider }}</code> · Ref: <code>{{ payment.provider_reference|default:"None" }}</code>
+                    </span>
+                    <span class="text-muted small d-block">
+                      Processed at: {{ payment.processed_at|default:payment.created_at|date:"M j, Y, g:i a" }}
+                    </span>
+                  </div>
+                  <div class="text-md-end">
+                    <span class="fs-5 fw-bold text-primary">${{ payment.amount }}</span>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-muted small mb-0">No payment records found for this booking.</p>
+          {% endif %}
+        </div>
+
+        <!-- Status History Card -->
+        <div class="detail-card p-4">
+          <h2 class="h6 fw-bold text-dark border-bottom pb-3 mb-3 d-flex align-items-center gap-2">
+            <i class="bi bi-clock-history text-primary"></i>
+            <span>Status History</span>
+          </h2>
+          <ul class="list-unstyled mb-0 d-flex flex-column gap-2">
+            {% for entry in booking.status_history.all %}
+              <li class="p-2 rounded border-start border-3 border-primary bg-light small d-flex justify-content-between align-items-center">
+                <div>
+                  <span class="fw-semibold text-dark text-capitalize">
+                    {% if entry.from_status %}{{ entry.from_status }} &rarr; {% endif %}{{ entry.to_status }}
+                  </span>
+                  {% if entry.reason %}
+                    <span class="text-muted d-block" style="font-size: 0.8rem;">{{ entry.reason }}</span>
+                  {% endif %}
+                </div>
+                <span class="text-muted" style="font-size: 0.75rem;">
+                  {{ entry.changed_at|date:"M j, Y, g:i:s a" }}
+                </span>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Ticket Voucher, Policies & Actions -->
+    <div class="col-lg-4">
+      <div class="d-flex flex-column gap-4">
+        <!-- Digital Ticket Card -->
+        <div class="ticket-voucher shadow">
+          <div class="d-flex justify-content-between align-items-start mb-3">
+            <div>
+              <span class="badge bg-white bg-opacity-25 text-white mb-1" style="font-size: 0.7rem;">DIGITAL PASS</span>
+              <h3 class="h6 fw-bold text-white mb-0">TicketFlow Access Pass</h3>
+            </div>
+            <i class="bi bi-ticket-perforated-fill fs-3 text-primary"></i>
+          </div>
+
+          <div class="mb-3">
+            <span class="text-white-50 small d-block">EVENT</span>
+            <strong class="text-white d-block">{{ booking.event.name }}</strong>
+          </div>
+
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <span class="text-white-50 small d-block">DATE</span>
+              <strong class="text-white small">{{ booking.event.event_date|date:"M j, Y" }}</strong>
+            </div>
+            <div class="col-6">
+              <span class="text-white-50 small d-block">TIME</span>
+              <strong class="text-white small">{{ booking.event.start_time|time:"g:i a" }}</strong>
+            </div>
+            <div class="col-6">
+              <span class="text-white-50 small d-block">PASSES</span>
+              <strong class="text-white small">{{ booking.booking_seats.count }} Seats</strong>
+            </div>
+            <div class="col-6">
+              <span class="text-white-50 small d-block">REF #</span>
+              <strong class="text-white small">#TF-{{ booking.id }}</strong>
+            </div>
+          </div>
+
+          <div class="p-2 rounded bg-white bg-opacity-10 text-center border border-white border-opacity-10">
+            <span class="small font-monospace tracking-wide text-white">||| | |||| | ||||| | || |||| |</span>
+            <span class="d-block text-white-50" style="font-size: 0.65rem;">VERIFIED DIGITAL PASS</span>
+          </div>
+        </div>
+
+        <!-- Simulated Sandbox Info Card -->
+        <div class="card border border-info-subtle bg-info-subtle rounded-4 p-3 shadow-sm">
+          <div class="d-flex gap-2 align-items-start">
+            <i class="bi bi-info-circle-fill text-info fs-5 mt-1"></i>
+            <div>
+              <h4 class="h6 fw-bold text-dark mb-1">Simulated Mock Environment</h4>
+              <p class="small text-muted mb-0">
+                TicketFlow uses sandbox mock payment providers (<code>mock_success</code>). No real financial transactions occur.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {% if is_cancellable and booking.status != "cancelled" and booking.status != "expired" %}
+          <!-- Cancellation Action Card -->
+          <div class="card border border-danger-subtle bg-danger-subtle rounded-4 p-3 shadow-sm">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <i class="bi bi-exclamation-triangle-fill text-danger fs-5"></i>
+              <h4 class="h6 fw-bold text-danger mb-0">Cancel Booking</h4>
+            </div>
+            <p class="small text-muted mb-3">
+              {% if is_refund_eligible %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill mb-1">Eligible for Full Refund</span><br>
+                This event starts in more than 24 hours. A full refund of <strong>${{ booking.total_price }}</strong> will be simulated.
+              {% else %}
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill mb-1">No Refund Cutoff</span><br>
+                Event starts in less than 24 hours. Under the cancellation policy, no refund will be issued.
+              {% endif %}
+            </p>
+            <button type="button" class="btn btn-outline-danger btn-sm w-100 fw-semibold" data-bs-toggle="modal" data-bs-target="#cancelBookingModal">
+              <i class="bi bi-x-circle me-1"></i>Cancel This Booking
+            </button>
+          </div>
+        {% elif booking.status == "cancelled" and refund %}
+          <!-- Refund Details Card -->
+          <div class="card border border-success-subtle bg-success-subtle rounded-4 p-3 shadow-sm">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <i class="bi bi-arrow-return-left text-success fs-5"></i>
+              <h4 class="h6 fw-bold text-success mb-0">Refund Information</h4>
+            </div>
+            <div class="small text-muted mb-1">Amount Refunded: <strong class="text-dark">${{ refund.amount }}</strong></div>
+            <div class="small text-muted mb-1">Provider Ref: <code>{{ refund.provider_reference|default:"Simulated" }}</code></div>
+            <div class="small text-muted">Status: <span class="badge bg-success">{{ refund.get_status_display }}</span></div>
+          </div>
+        {% endif %}
+
+        <!-- Navigation Buttons -->
+        <div class="d-flex flex-column gap-2">
+          <a href="{% url 'events:booking-list' %}" class="btn btn-primary w-100 py-2 fw-semibold">
+            <i class="bi bi-ticket-perforated me-1"></i>All My Bookings
+          </a>
+          <a href="{% url 'events:list' %}" class="btn btn-outline-secondary w-100 py-2">
+            <i class="bi bi-compass me-1"></i>Browse Upcoming Events
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cancellation Confirmation Modal -->
+<div class="modal fade" id="cancelBookingModal" tabindex="-1" aria-labelledby="cancelBookingModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
+      <div class="modal-header bg-danger text-white border-0">
+        <h5 class="modal-title fw-bold d-flex align-items-center gap-2" id="cancelBookingModalLabel">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          <span>Confirm Booking Cancellation</span>
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post" action="{% url 'events:booking-cancel' booking.pk %}">
+        {% csrf_token %}
+        <div class="modal-body p-4">
+          <p class="text-dark mb-3">
+            Are you sure you want to cancel booking <strong>#TF-{{ booking.id }}</strong> for <strong>{{ booking.event.name }}</strong>?
+          </p>
+
+          <div class="p-3 bg-light rounded-3 border mb-3 small">
+            <strong class="d-block mb-1 text-dark">Cancellation &amp; Refund Policy:</strong>
+            {% if is_refund_eligible %}
+              <span class="text-success fw-bold d-block mb-1">
+                <i class="bi bi-check-circle-fill me-1"></i>Eligible for 100% Full Refund (${{ booking.total_price }})
+              </span>
+              <span class="text-muted">
+                Since this cancellation is requested more than 24 hours prior to the event ({{ booking.event.event_date|date:"M j, Y" }} at {{ booking.event.start_time|time:"g:i a" }}), a full simulated refund will be processed immediately.
+              </span>
+            {% else %}
+              <span class="text-danger fw-bold d-block mb-1">
+                <i class="bi bi-x-circle-fill me-1"></i>No Refund Applicable
+              </span>
+              <span class="text-muted">
+                Because the event starts in less than 24 hours (or has already started), no refund will be issued under our cancellation policy.
+              </span>
+            {% endif %}
+          </div>
+
+          <div class="mb-3">
+            <label for="cancelReason" class="form-label small fw-semibold text-muted">Reason for cancellation (optional):</label>
+            <input
+              type="text"
+              id="cancelReason"
+              name="reason"
+              class="form-control"
+              placeholder="e.g. Schedule conflict, personal reasons"
+            >
+          </div>
+        </div>
+        <div class="modal-footer bg-light border-top p-3">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Keep My Booking</button>
+          <button type="submit" class="btn btn-danger fw-semibold">
+            <i class="bi bi-x-circle me-1"></i>Confirm Cancellation
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

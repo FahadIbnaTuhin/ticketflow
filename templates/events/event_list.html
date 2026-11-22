@@ -1,72 +1,355 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Events | TicketFlow</title>
-  </head>
-  <body>
-    <main>
-      <h1>Events</h1>
-      <form method="get">
-        <label for="event-search">Search events</label>
-        <input
-          id="event-search"
-          type="search"
-          name="q"
-          value="{{ search_query }}"
-        >
+{% extends "base.html" %}
 
-        <label for="event-city">City</label>
-        <select id="event-city" name="city">
-          <option value="">All cities</option>
-          {% for city in cities %}
-            <option value="{{ city }}"{% if selected_city|lower == city|lower %} selected{% endif %}>
-              {{ city }}
-            </option>
-          {% endfor %}
-        </select>
+{% block title %}Events | TicketFlow{% endblock %}
 
-        <label for="event-date">Date</label>
-        <input
-          id="event-date"
-          type="date"
-          name="date"
-          value="{{ selected_date }}"
-        >
+{% block extra_head %}
+<style>
+  /* Custom styles for Browse Events page */
+  .browse-hero-header {
+    background: radial-gradient(circle at top right, #1e1b4b 0%, #0f172a 70%, #020617 100%);
+    color: #ffffff;
+    padding: 3rem 0 2.5rem 0;
+    margin-bottom: 2rem;
+  }
 
-        <button type="submit">Search</button>
-      </form>
+  .filter-card {
+    background: #ffffff;
+    border: 1px solid var(--tf-card-border);
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.05);
+  }
 
-      {% for event in events %}
-        <article>
-          <h2><a href="{% url 'events:detail' event.pk %}">{{ event.name }}</a></h2>
-          <p>{{ event.city }} · {{ event.event_date }} at {{ event.start_time }}</p>
-          <p>{{ event.venue }}</p>
-        </article>
-      {% empty %}
-        <p>No events match your search.</p>
-      {% endfor %}
+  .event-pagination a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.45rem 1.15rem;
+    border-radius: 50rem;
+    background-color: #ffffff;
+    border: 1px solid var(--tf-primary);
+    color: var(--tf-primary);
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-decoration: none;
+    transition: all 0.15s ease-in-out;
+    box-shadow: 0 2px 4px rgba(79, 70, 229, 0.1);
+  }
 
-      {% if page_obj.has_other_pages %}
-        <nav aria-label="Event pages">
-          {% if page_obj.has_previous %}
-            <a href="?{% if query_string %}{{ query_string }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">
-              Previous
-            </a>
-          {% endif %}
-          <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
-          {% if page_obj.has_next %}
-            <a href="?{% if query_string %}{{ query_string }}&amp;{% endif %}page={{ page_obj.next_page_number }}">
-              Next
-            </a>
-          {% endif %}
+  .event-pagination a:hover {
+    background-color: var(--tf-primary);
+    color: #ffffff;
+    box-shadow: 0 4px 8px rgba(79, 70, 229, 0.25);
+  }
+
+  .event-pagination span {
+    font-size: 0.9rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header Banner -->
+<header class="browse-hero-header">
+  <div class="container">
+    <div class="row align-items-center justify-content-between g-3">
+      <div class="col-lg-8">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb small mb-2 text-white-50">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}" class="text-white-50 text-decoration-none">Home</a></li>
+            <li class="breadcrumb-item active text-white" aria-current="page">Events</li>
+          </ol>
         </nav>
-      {% endif %}
+        <h1 class="display-6 fw-bold text-white mb-2">Events</h1>
+        <p class="text-light text-opacity-75 mb-0" style="max-width: 600px;">
+          Explore upcoming live events, concerts, conferences, and festivals.
+          Find your favorite artists, reserve seats, and secure your tickets.
+        </p>
+      </div>
+      <div class="col-lg-4 text-lg-end">
+        {% if user.is_authenticated and user.role == "organizer" %}
+          <a href="{% url 'events:create' %}" class="btn btn-primary fw-semibold d-inline-flex align-items-center gap-2 shadow-sm">
+            <i class="bi bi-plus-circle"></i>
+            <span>Create Event</span>
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</header>
 
-      {% if user.is_authenticated and user.role == "organizer" %}
-        <p><a href="{% url 'events:organizer-list' %}">Manage my events</a></p>
+<div class="container pb-5">
+  <!-- Search & Filter Card -->
+  <section class="filter-card p-4 mb-4" aria-label="Search and filter events">
+    <form method="get" class="row g-3 align-items-end">
+      <!-- Search Input -->
+      <div class="col-12 col-md-4">
+        <label for="event-search" class="form-label small fw-semibold text-dark mb-1">Search events</label>
+        <div class="input-group">
+          <span class="input-group-text bg-light border-end-0 text-muted">
+            <i class="bi bi-search"></i>
+          </span>
+          <input
+            id="event-search"
+            class="form-control border-start-0"
+            type="search"
+            name="q"
+            value="{{ search_query }}"
+            placeholder="Event name, keyword..."
+          >
+        </div>
+      </div>
+
+      <!-- City Dropdown -->
+      <div class="col-12 col-sm-6 col-md-3">
+        <label for="event-city" class="form-label small fw-semibold text-dark mb-1">City</label>
+        <div class="input-group">
+          <span class="input-group-text bg-light border-end-0 text-muted">
+            <i class="bi bi-geo-alt"></i>
+          </span>
+          <select id="event-city" class="form-select border-start-0" name="city">
+            <option value="">All cities</option>
+            {% for city in cities %}
+              <option value="{{ city }}"{% if selected_city|lower == city|lower %} selected{% endif %}>
+                {{ city }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <!-- Date Input -->
+      <div class="col-12 col-sm-6 col-md-3">
+        <label for="event-date" class="form-label small fw-semibold text-dark mb-1">Date</label>
+        <div class="input-group">
+          <span class="input-group-text bg-light border-end-0 text-muted">
+            <i class="bi bi-calendar3"></i>
+          </span>
+          <input
+            id="event-date"
+            class="form-control border-start-0"
+            type="date"
+            name="date"
+            value="{{ selected_date }}"
+          >
+        </div>
+      </div>
+
+      <!-- Submit & Reset Buttons -->
+      <div class="col-12 col-md-2 d-flex gap-2">
+        <button type="submit" class="btn btn-primary w-100 fw-semibold d-inline-flex align-items-center justify-content-center gap-1">
+          <i class="bi bi-funnel"></i>
+          <span>Search</span>
+        </button>
+        {% if search_query or selected_city or selected_date %}
+          <a href="{% url 'events:list' %}" class="btn btn-outline-secondary d-inline-flex align-items-center justify-content-center" title="Clear all filters">
+            <i class="bi bi-x-lg"></i>
+          </a>
+        {% endif %}
+      </div>
+    </form>
+  </section>
+
+  <!-- Active Filters Indicator Bar -->
+  {% if search_query or selected_city or selected_date %}
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-4 p-3 bg-white rounded-3 border shadow-sm">
+      <span class="small fw-bold text-muted text-uppercase d-flex align-items-center gap-1">
+        <i class="bi bi-funnel-fill text-primary"></i> Active Filters:
+      </span>
+      {% if search_query %}
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 rounded-pill d-inline-flex align-items-center gap-1">
+          <span>Keyword: <strong>{{ search_query }}</strong></span>
+        </span>
       {% endif %}
-    </main>
-  </body>
-</html>
+      {% if selected_city %}
+        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle px-3 py-2 rounded-pill d-inline-flex align-items-center gap-1">
+          <span>City: <strong>{{ selected_city }}</strong></span>
+        </span>
+      {% endif %}
+      {% if selected_date %}
+        <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle px-3 py-2 rounded-pill d-inline-flex align-items-center gap-1">
+          <span>Date: <strong>{{ selected_date }}</strong></span>
+        </span>
+      {% endif %}
+      <a href="{% url 'events:list' %}" class="btn btn-sm btn-outline-danger rounded-pill px-3 ms-auto d-inline-flex align-items-center gap-1 text-decoration-none">
+        <i class="bi bi-x-circle"></i>
+        <span>Clear all filters</span>
+      </a>
+    </div>
+  {% endif %}
+
+  <!-- Results Count Bar -->
+  <div class="d-flex justify-content-between align-items-center mb-3 text-muted small">
+    <div>
+      {% if page_obj.paginator.count %}
+        Showing <strong>{{ events|length }}</strong> of <strong>{{ page_obj.paginator.count }}</strong> event{{ page_obj.paginator.count|pluralize }}
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Events Grid -->
+  {% if events %}
+    <div class="row g-4">
+      {% for event in events %}
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="event-card">
+            <!-- Card Visual Header -->
+            <div class="event-card-header">
+              <!-- Date Badge -->
+              <div class="date-badge">
+                <div class="date-badge-month">{{ event.event_date|date:"M" }}</div>
+                <div class="date-badge-day">{{ event.event_date|date:"j" }}</div>
+              </div>
+
+              <!-- Pricing Strategy / Early Bird Pill -->
+              <div>
+                {% if event.pricing_strategy == "early_bird" %}
+                  <span class="strategy-pill bg-warning text-dark fw-bold d-inline-flex align-items-center gap-1">
+                    <i class="bi bi-lightning-fill"></i> Early Bird
+                  </span>
+                {% else %}
+                  <span class="strategy-pill bg-light bg-opacity-25 text-white border border-white border-opacity-25">
+                    Standard
+                  </span>
+                {% endif %}
+              </div>
+            </div>
+
+            <!-- Card Body -->
+            <div class="p-4 d-flex flex-column flex-grow-1">
+              <h2 class="card-title h5 fw-bold mb-2">
+                <a href="{% url 'events:detail' event.pk %}" class="text-decoration-none text-dark">
+                  {{ event.name }}
+                </a>
+              </h2>
+
+              <!-- Location & Date/Time Info -->
+              <div class="mb-3 d-flex flex-column gap-1 text-muted small">
+                <p class="mb-0 text-muted">
+                  <i class="bi bi-geo-alt-fill text-danger me-1"></i>
+                  <span>{{ event.city }} · {{ event.event_date }} at {{ event.start_time }}</span>
+                </p>
+                <p class="mb-0 text-secondary">
+                  <i class="bi bi-building me-1"></i>
+                  <span>{{ event.venue }}</span>
+                </p>
+              </div>
+
+              <!-- Description Excerpt -->
+              <p class="card-text text-secondary small flex-grow-1 mb-3">
+                {{ event.description|truncatewords:20 }}
+              </p>
+
+              <!-- Capacity / Organizer row -->
+              <div class="d-flex justify-content-between align-items-center small text-muted pt-2 border-top mb-3">
+                <span class="d-inline-flex align-items-center gap-1">
+                  <i class="bi bi-person"></i> {{ event.organizer.username }}
+                </span>
+                <span class="d-inline-flex align-items-center gap-1">
+                  <i class="bi bi-grid"></i> {{ event.seat_map_rows }}&times;{{ event.seats_per_row }} seats
+                </span>
+              </div>
+
+              <!-- Pricing Information and Detail CTA -->
+              <div class="d-flex justify-content-between align-items-center mt-auto pt-2 border-top">
+                <div>
+                  {% if event.pricing_strategy == "early_bird" and event.early_bird_price %}
+                    <div class="d-flex align-items-baseline gap-1">
+                      <span class="fs-5 fw-bold text-success">${{ event.early_bird_price }}</span>
+                      <span class="text-muted text-decoration-line-through small">${{ event.base_price }}</span>
+                    </div>
+                    <span class="text-success small fw-medium" style="font-size: 0.75rem;">Early-bird price</span>
+                  {% else %}
+                    <div class="fs-5 fw-bold text-primary">${{ event.base_price }}</div>
+                    <span class="text-muted small" style="font-size: 0.75rem;">Base ticket price</span>
+                  {% endif %}
+                </div>
+
+                <a href="{% url 'events:detail' event.pk %}" class="btn btn-outline-primary btn-sm fw-semibold d-inline-flex align-items-center gap-1">
+                  <span>View Details</span>
+                  <i class="bi bi-arrow-right-short"></i>
+                </a>
+              </div>
+            </div>
+          </article>
+        </div>
+      {% endfor %}
+    </div>
+
+  {% else %}
+    <!-- Sensible Empty States -->
+    {% if search_query or selected_city or selected_date %}
+      <!-- Case A: Search / Filters yielded 0 results -->
+      <div class="empty-state-card shadow-sm my-4">
+        <div class="empty-state-icon">
+          <i class="bi bi-search"></i>
+        </div>
+        <h3 class="fw-bold mb-2">No Matching Events Found</h3>
+        <p class="text-muted mx-auto mb-3" style="max-width: 460px;">
+          No events match your search.
+        </p>
+        <p class="text-secondary small mx-auto mb-4" style="max-width: 480px;">
+          Try adjusting your search terms, selecting a different city or date, or reset your filters.
+        </p>
+        <div class="d-flex justify-content-center">
+          <a href="{% url 'events:list' %}" class="btn btn-primary d-inline-flex align-items-center gap-2">
+            <i class="bi bi-arrow-counterclockwise"></i>
+            <span>Clear all filters</span>
+          </a>
+        </div>
+      </div>
+    {% else %}
+      <!-- Case B: Complete empty catalog -->
+      <div class="empty-state-card shadow-sm my-4">
+        <div class="empty-state-icon">
+          <i class="bi bi-calendar-x"></i>
+        </div>
+        <h3 class="fw-bold mb-2">No Events Listed Yet</h3>
+        <p class="text-muted mx-auto mb-4" style="max-width: 460px;">
+          No events match your search. Check back soon for new announcements and ticket openings!
+        </p>
+        {% if user.is_authenticated and user.role == "organizer" %}
+          <div class="d-flex justify-content-center">
+            <a href="{% url 'events:create' %}" class="btn btn-primary d-inline-flex align-items-center gap-2">
+              <i class="bi bi-plus-circle"></i>
+              <span>Create the First Event</span>
+            </a>
+          </div>
+        {% endif %}
+      </div>
+    {% endif %}
+  {% endif %}
+
+  <!-- Pagination Controls -->
+  {% if page_obj.has_other_pages %}
+    <nav aria-label="Event pages" class="d-flex justify-content-center mt-5">
+      <div class="event-pagination d-flex align-items-center gap-3 bg-white px-4 py-2 rounded-pill shadow-sm border">
+        {% if page_obj.has_previous %}
+          <a href="?{% if query_string %}{{ query_string }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">
+            Previous
+          </a>
+        {% endif %}
+
+        <span class="text-muted fw-semibold">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+
+        {% if page_obj.has_next %}
+          <a href="?{% if query_string %}{{ query_string }}&amp;{% endif %}page={{ page_obj.next_page_number }}">
+            Next
+          </a>
+        {% endif %}
+      </div>
+    </nav>
+  {% endif %}
+
+  <!-- Organizer Quick Actions -->
+  {% if user.is_authenticated and user.role == "organizer" %}
+    <div class="mt-5 pt-4 border-top text-center">
+      <p class="text-muted small mb-0">
+        Looking to manage or update your own event listings?
+        <a href="{% url 'events:organizer-list' %}" class="fw-semibold text-primary text-decoration-none ms-1">
+          <i class="bi bi-speedometer2 me-1"></i>Manage my events
+        </a>
+      </p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

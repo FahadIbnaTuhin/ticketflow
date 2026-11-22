@@ -8,6 +8,14 @@ class EventForm(forms.ModelForm):
         model = Event
         exclude = ("organizer", "created_at", "updated_at")
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field_name, field in self.fields.items():
+            if isinstance(field.widget, forms.Select):
+                field.widget.attrs.setdefault("class", "form-select")
+            else:
+                field.widget.attrs.setdefault("class", "form-control")
+
     def clean(self):
         cleaned_data = super().clean()
         if (
@@ -61,6 +69,11 @@ class EventCategoryForm(forms.ModelForm):
         self.fields["early_bird_price"].required = (
             event.pricing_strategy == Event.PricingStrategy.EARLY_BIRD
         )
+        for field_name, field in self.fields.items():
+            if isinstance(field.widget, forms.Select):
+                field.widget.attrs.setdefault("class", "form-select")
+            else:
+                field.widget.attrs.setdefault("class", "form-control")
 
     def save(self, commit=True):
         category = super().save(commit=False)
