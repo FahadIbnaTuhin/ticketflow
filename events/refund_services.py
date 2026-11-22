@@ -34,7 +34,7 @@ def cancel_booking_with_refund(*, booking_id, customer, reason=""):
         if len(seats) != len(set(seat_ids)):
             raise BookingNotFound("Booking seats are unavailable.")
         booking = (
-            Booking.objects.select_for_update()
+            Booking.objects.select_for_update(of=("self",))
             .select_related("event")
             .filter(pk=booking_id)
             .first()

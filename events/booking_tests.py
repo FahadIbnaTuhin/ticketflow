@@ -607,3 +607,23 @@ def test_concurrent_conversion_of_same_hold_creates_one_booking(
         booking_seats__seat=seat,
         booking_seats__occupies_seat=True,
     ).count() == 1
+
+
+def test_seathold_select_for_update_specifies_of_self_for_postgresql():
+    from django.db.backends.postgresql.base import DatabaseWrapper
+
+    conn = DatabaseWrapper(
+        {"NAME": "test", "USER": "test", "ENGINE": "django.db.backends.postgresql"}
+    )
+    conn.features.has_select_for_update = True
+    conn.features.has_select_for_update_of = True
+
+    qs = (
+        SeatHold.objects.select_for_update(of=("self",))
+        .filter(pk__in=[1], seat__event_id=1)
+        .select_related("seat__category")
+    )
+    compiler = qs.query.get_compiler(using="default", connection=conn)
+    compiler.pre_sql_setup()
+    of_args = compiler.get_select_for_update_of_arguments()
+    assert of_args == ['"events_seathold"']
