@@ -1,71 +1,256 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Seat categories | {{ event.name }}</title>
-  </head>
-  <body>
-    <main>
-      <h1>Seat categories for {{ event.name }}</h1>
+{% extends "base.html" %}
 
-      <h2>Add category</h2>
-      <form method="post" action="{% url 'events:category-create' event.pk %}">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">Add category</button>
-      </form>
+{% block title %}Seat Categories | {{ event.name }} | TicketFlow{% endblock %}
 
-      <h2>Categories</h2>
-      <ul>
-        {% for category in categories %}
-          <li>
-            {{ category.name }} — base {{ category.base_price }}
-            {% if category.early_bird_price is not None %}
-              — early bird {{ category.early_bird_price }}
+{% block extra_head %}
+<style>
+  .category-hero {
+    background: radial-gradient(circle at top right, #1e1b4b 0%, #0f172a 75%, #020617 100%);
+    color: #ffffff;
+    padding: 2.5rem 0 2rem 0;
+    margin-bottom: 2rem;
+  }
+
+  .admin-card {
+    background: #ffffff;
+    border: 1px solid var(--tf-card-border);
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.05);
+  }
+
+  .seat-assign-scroll {
+    max-height: 480px;
+    overflow-y: auto;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Hero Banner -->
+<section class="category-hero">
+  <div class="container">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-2" style="font-size: 0.85rem;">
+        <li class="breadcrumb-item"><a href="{% url 'home' %}" class="text-white-50 text-decoration-none">Home</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'events:organizer-list' %}" class="text-white-50 text-decoration-none">Organizer Dashboard</a></li>
+        <li class="breadcrumb-item active text-white" aria-current="page">Seat Categories</li>
+      </ol>
+    </nav>
+
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+      <div>
+        <h1 class="h2 fw-bold mb-1 text-white d-flex align-items-center gap-2">
+          <i class="bi bi-tags-fill text-warning"></i>
+          <span>Seat Categories &amp; Pricing</span>
+        </h1>
+        <p class="text-white-50 mb-0 small">
+          Event: <strong>{{ event.name }}</strong> · Pricing Strategy: <strong>{{ event.get_pricing_strategy_display }}</strong>
+        </p>
+      </div>
+
+      <div class="d-flex gap-2">
+        <a href="{% url 'events:detail' event.pk %}" class="btn btn-outline-light btn-sm fw-medium">
+          <i class="bi bi-eye me-1"></i>View Customer Map
+        </a>
+        <a href="{% url 'events:organizer-list' %}" class="btn btn-outline-light btn-sm fw-medium">
+          <i class="bi bi-arrow-left me-1"></i>My Events
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Content Container -->
+<div class="container pb-5">
+  <div class="row g-4">
+    <!-- Left Column: Categories List & Add Category -->
+    <div class="col-lg-6">
+      <div class="d-flex flex-column gap-4">
+        <!-- Existing Categories Table Card -->
+        <div class="admin-card p-4">
+          <h2 class="h6 fw-bold text-dark border-bottom pb-3 mb-3 d-flex align-items-center gap-2">
+            <i class="bi bi-collection-fill text-primary"></i>
+            <span>Configured Categories ({{ categories.count }})</span>
+          </h2>
+
+          {% if categories %}
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th scope="col" class="py-2">Category</th>
+                    <th scope="col" class="py-2 text-end">Base Rate</th>
+                    {% if event.pricing_strategy == "early_bird" %}
+                      <th scope="col" class="py-2 text-end">Early Bird</th>
+                    {% endif %}
+                    <th scope="col" class="py-2 text-end">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for category in categories %}
+                    <tr>
+                      <td class="py-2">
+                        <strong class="text-dark d-block">{{ category.name }}</strong>
+                        <span class="text-muted small">{{ category.seats.count }} seats assigned</span>
+                      </td>
+                      <td class="py-2 text-end fw-semibold text-primary">
+                        ${{ category.base_price }}
+                      </td>
+                      {% if event.pricing_strategy == "early_bird" %}
+                        <td class="py-2 text-end fw-semibold text-success">
+                          {% if category.early_bird_price is not None %}
+                            ${{ category.early_bird_price }}
+                          {% else %}
+                            <span class="text-muted">—</span>
+                          {% endif %}
+                        </td>
+                      {% endif %}
+                      <td class="py-2 text-end">
+                        <div class="btn-group btn-group-sm">
+                          <a href="{% url 'events:category-update' event.pk category.pk %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-pencil"></i>
+                          </a>
+                          <form
+                            method="post"
+                            action="{% url 'events:category-delete' event.pk category.pk %}"
+                            class="d-inline"
+                          >
+                            {% csrf_token %}
+                            <button
+                              type="submit"
+                              class="btn btn-outline-danger"
+                              onclick="return confirm('Delete category \'{{ category.name }}\'?');"
+                            >
+                              <i class="bi bi-trash3"></i>
+                            </button>
+                          </form>
+                        </div>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="text-muted small mb-0">No categories created yet. Use the form below to add one.</p>
+          {% endif %}
+        </div>
+
+        <!-- Add Category Form Card -->
+        <div class="admin-card p-4">
+          <h2 class="h6 fw-bold text-dark border-bottom pb-3 mb-3 d-flex align-items-center gap-2">
+            <i class="bi bi-plus-circle-fill text-primary"></i>
+            <span>Add New Category</span>
+          </h2>
+
+          <form method="post" action="{% url 'events:category-create' event.pk %}">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+              <div class="alert alert-danger py-2 small mb-3">
+                {{ form.non_field_errors }}
+              </div>
             {% endif %}
-            <a href="{% url 'events:category-update' event.pk category.pk %}">Edit</a>
-            <form
-              method="post"
-              action="{% url 'events:category-delete' event.pk category.pk %}"
-              style="display: inline"
-            >
-              {% csrf_token %}
-              <button type="submit">Delete</button>
-            </form>
-          </li>
-        {% empty %}
-          <li>No categories have been created.</li>
-        {% endfor %}
-      </ul>
 
-      <h2>Assign seat categories</h2>
-      <p>Choose a category for each seat. Prices shown to customers use the event's current pricing strategy.</p>
-      {% for seat in seats %}
-        <form
-          method="post"
-          action="{% url 'events:seat-category-assign' event.pk seat.pk %}"
-        >
-          {% csrf_token %}
-          <label for="category-{{ seat.pk }}">
-            Row {{ seat.row_number }}, seat {{ seat.seat_number }}
-          </label>
-          <select id="category-{{ seat.pk }}" name="category_id" required>
-            {% for category in categories %}
-              <option
-                value="{{ category.pk }}"
-                {% if seat.category_id == category.pk %}selected{% endif %}
+            <div class="mb-3">
+              <label for="{{ form.name.id_for_label }}" class="form-label small fw-semibold text-dark">
+                Category Name <span class="text-danger">*</span>
+              </label>
+              {{ form.name }}
+              {% if form.name.errors %}
+                <div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <div class="row g-3 mb-3">
+              <div class="col-sm-6">
+                <label for="{{ form.base_price.id_for_label }}" class="form-label small fw-semibold text-dark">
+                  Base Price ($) <span class="text-danger">*</span>
+                </label>
+                {{ form.base_price }}
+                {% if form.base_price.errors %}
+                  <div class="text-danger small mt-1">{{ form.base_price.errors.0 }}</div>
+                {% endif %}
+              </div>
+              <div class="col-sm-6">
+                <label for="{{ form.early_bird_price.id_for_label }}" class="form-label small fw-semibold text-dark">
+                  Early Bird Price ($)
+                </label>
+                {{ form.early_bird_price }}
+                {% if form.early_bird_price.errors %}
+                  <div class="text-danger small mt-1">{{ form.early_bird_price.errors.0 }}</div>
+                {% endif %}
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 fw-semibold">
+              <i class="bi bi-plus-lg me-1"></i>Add Category
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Seat Category Assignment Table -->
+    <div class="col-lg-6">
+      <div class="admin-card p-4 h-100 d-flex flex-column">
+        <h2 class="h6 fw-bold text-dark border-bottom pb-3 mb-2 d-flex align-items-center justify-content-between">
+          <span class="d-flex align-items-center gap-2">
+            <i class="bi bi-grid-3x3-gap-fill text-primary"></i>
+            <span>Assign Seats to Categories</span>
+          </span>
+          <span class="badge bg-light text-secondary border small">{{ seats.count }} Seats</span>
+        </h2>
+        <p class="text-muted small mb-3">
+          Select a category for each seat coordinate. Prices reflect your event's active pricing rules.
+        </p>
+
+        <div class="seat-assign-scroll flex-grow-1 pe-2">
+          <div class="d-flex flex-column gap-2">
+            {% for seat in seats %}
+              <form
+                method="post"
+                action="{% url 'events:seat-category-assign' event.pk seat.pk %}"
+                class="p-2 rounded-3 border bg-light d-flex align-items-center justify-content-between gap-2"
               >
-                {{ category.name }} ({{ category.base_price }})
-              </option>
-            {% endfor %}
-          </select>
-          <button type="submit">Assign</button>
-        </form>
-      {% endfor %}
+                {% csrf_token %}
+                <div class="d-flex align-items-center gap-2">
+                  <span class="badge bg-dark text-white rounded-pill px-2 py-1" style="font-size: 0.75rem;">
+                    R{{ seat.row_number }}-S{{ seat.seat_number }}
+                  </span>
+                  <span class="small fw-semibold text-dark">
+                    Row {{ seat.row_number }}, Seat {{ seat.seat_number }}
+                  </span>
+                </div>
 
-      <p><a href="{% url 'events:detail' event.pk %}">View event and customer seat map</a></p>
-      <p><a href="{% url 'events:organizer-list' %}">Back to my events</a></p>
-    </main>
-  </body>
-</html>
+                <div class="d-flex align-items-center gap-2">
+                  <select
+                    id="category-{{ seat.pk }}"
+                    name="category_id"
+                    class="form-select form-select-sm"
+                    style="max-width: 170px;"
+                    required
+                  >
+                    {% for category in categories %}
+                      <option
+                        value="{{ category.pk }}"
+                        {% if seat.category_id == category.pk %}selected{% endif %}
+                      >
+                        {{ category.name }} (${{ category.base_price }})
+                      </option>
+                    {% endfor %}
+                  </select>
+                  <button type="submit" class="btn btn-sm btn-primary px-3">
+                    Assign
+                  </button>
+                </div>
+              </form>
+            {% empty %}
+              <p class="text-muted small mb-0">No seats found for this event.</p>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

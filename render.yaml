@@ -1,0 +1,58 @@
+databases:
+  - name: ticketflow-db
+    databaseName: ticketflow
+    user: ticketflow
+    plan: free
+
+services:
+  - type: web
+    name: ticketflow-web
+    runtime: python
+    plan: free
+    buildCommand: |
+      pip install -r requirements.txt
+      python manage.py collectstatic --no-input
+      python manage.py migrate
+      python manage.py seed_demo_data
+    startCommand: gunicorn config.wsgi:application
+    envVars:
+      - key: DJANGO_ENV
+        value: production
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_ALLOWED_HOSTS
+        value: .onrender.com,localhost,127.0.0.1
+      - key: CSRF_TRUSTED_ORIGINS
+        value: https://*.onrender.com
+      - key: DB_ENGINE
+        value: postgresql
+      - key: DB_NAME
+        fromDatabase:
+          name: ticketflow-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: ticketflow-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: ticketflow-db
+          property: password
+      - key: DB_HOST
+        fromDatabase:
+          name: ticketflow-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: ticketflow-db
+          property: port
+      - key: DB_SSLMODE
+        value: require
+      - key: PAYMENT_PROVIDER
+        value: mock_success
+      - key: ALLOW_MOCK_PAYMENTS_IN_PRODUCTION
+        value: "True"
+      - key: EMAIL_BACKEND
+        value: django.core.mail.backends.console.EmailBackend

@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+
+{% block title %}TicketFlow — Live Event Ticket Booking &amp; Seat Reservations{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section py-5 py-lg-6">
+  <div class="container py-4 py-lg-5 position-relative" style="z-index: 1;">
+    <div class="row align-items-center g-5">
+      <div class="col-lg-8">
+        <!-- Eyebrow Badge -->
+        <div class="mb-3">
+          <span class="hero-badge text-white">
+            <i class="bi bi-stars text-warning"></i> Real-time Seat Holds &amp; Smart Ticketing
+          </span>
+        </div>
+
+        <!-- Headline -->
+        <h1 class="hero-title mb-3">
+          Book Live Events with Instant Seat Selection
+        </h1>
+
+        <!-- Subheadline -->
+        <p class="hero-lead mb-4">
+          Discover concerts, conferences, and performances. Reserve your exact seats
+          with live hold protection, fair category pricing, and early-bird discounts.
+        </p>
+
+        <!-- CTA Action Buttons -->
+        <div class="d-flex flex-wrap gap-3 mb-4">
+          <a href="{% url 'events:list' %}" class="btn btn-primary btn-lg px-4 py-2 d-inline-flex align-items-center gap-2 shadow">
+            <i class="bi bi-compass"></i>
+            <span>Browse All Events</span>
+          </a>
+
+          {% if user.is_authenticated %}
+            {% if user.role == "organizer" %}
+              <a href="{% url 'events:create' %}" class="btn btn-outline-light btn-lg px-4 py-2 d-inline-flex align-items-center gap-2">
+                <i class="bi bi-plus-circle"></i>
+                <span>Create New Event</span>
+              </a>
+            {% elif user.role == "customer" %}
+              <a href="{% url 'events:booking-list' %}" class="btn btn-outline-light btn-lg px-4 py-2 d-inline-flex align-items-center gap-2">
+                <i class="bi bi-receipt"></i>
+                <span>View My Bookings</span>
+              </a>
+            {% endif %}
+          {% else %}
+            <a href="{% url 'accounts:register' %}" class="btn btn-outline-light btn-lg px-4 py-2 d-inline-flex align-items-center gap-2">
+              <i class="bi bi-person-plus"></i>
+              <span>Get Started Free</span>
+            </a>
+          {% endif %}
+        </div>
+
+        <!-- Quick Event Discovery Search Box -->
+        <div class="hero-search-box mt-4">
+          <form action="{% url 'events:list' %}" method="get" class="row g-2 align-items-center">
+            <div class="col-12 col-md-5">
+              <div class="input-group">
+                <span class="input-group-text bg-white border-end-0 text-muted">
+                  <i class="bi bi-search"></i>
+                </span>
+                <input
+                  type="search"
+                  name="q"
+                  class="form-control border-start-0"
+                  placeholder="Search events by name or artist..."
+                  aria-label="Search events"
+                >
+              </div>
+            </div>
+            <div class="col-12 col-md-4">
+              <div class="input-group">
+                <span class="input-group-text bg-white border-end-0 text-muted">
+                  <i class="bi bi-geo-alt"></i>
+                </span>
+                <input
+                  type="text"
+                  name="city"
+                  class="form-control border-start-0"
+                  placeholder="Filter by city (e.g. Dhaka)"
+                  aria-label="City"
+                >
+              </div>
+            </div>
+            <div class="col-12 col-md-3">
+              <button type="submit" class="btn btn-primary w-100 fw-semibold d-inline-flex align-items-center justify-content-center gap-2">
+                <i class="bi bi-arrow-right-circle"></i>
+                <span>Discover</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Quick Platform Stats / Trust Pillars -->
+      <div class="col-lg-4 d-none d-lg-block">
+        <div class="p-4 rounded-4" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12); backdrop-filter: blur(10px);">
+          <h5 class="text-white fw-bold mb-4 d-flex align-items-center gap-2">
+            <i class="bi bi-shield-check text-success"></i> The TicketFlow Guarantee
+          </h5>
+
+          <div class="d-flex align-items-start gap-3 mb-4">
+            <div class="p-2 rounded-3 bg-primary bg-opacity-25 text-primary">
+              <i class="bi bi-grid-3x3-gap-fill fs-5 text-white"></i>
+            </div>
+            <div>
+              <h6 class="text-white fw-semibold mb-1">Row &amp; Seat Level Maps</h6>
+              <p class="small text-secondary mb-0">Select and preview your seats directly on an interactive visual floor plan.</p>
+            </div>
+          </div>
+
+          <div class="d-flex align-items-start gap-3 mb-4">
+            <div class="p-2 rounded-3 bg-warning bg-opacity-25 text-warning">
+              <i class="bi bi-stopwatch-fill fs-5 text-warning"></i>
+            </div>
+            <div>
+              <h6 class="text-white fw-semibold mb-1">5-Minute Active Seat Holds</h6>
+              <p class="small text-secondary mb-0">No rush and no race conditions. Your held seats stay locked while completing booking.</p>
+            </div>
+          </div>
+
+          <div class="d-flex align-items-start gap-3">
+            <div class="p-2 rounded-3 bg-info bg-opacity-25 text-info">
+              <i class="bi bi-tags-fill fs-5 text-info"></i>
+            </div>
+            <div>
+              <h6 class="text-white fw-semibold mb-1">Early-Bird Advantage</h6>
+              <p class="small text-secondary mb-0">Organizers offer timed early-bird windows so attendees get the best ticket rates.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Upcoming Events Section -->
+<section class="py-5" id="upcoming-events">
+  <div class="container py-3">
+    <!-- Section Header -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-4 gap-2">
+      <div>
+        <span class="text-primary fw-bold text-uppercase small letter-spacing-1">What's Coming Up</span>
+        <h2 class="fw-bold mb-1">Upcoming Events</h2>
+        <p class="text-muted mb-0">Explore scheduled live experiences, concerts, and gatherings.</p>
+      </div>
+      <div>
+        <a href="{% url 'events:list' %}" class="btn btn-outline-primary btn-sm fw-semibold d-inline-flex align-items-center gap-1">
+          <span>View All Events</span>
+          <i class="bi bi-arrow-right"></i>
+        </a>
+      </div>
+    </div>
+
+    <!-- Event Cards Grid or Empty State -->
+    {% if events %}
+      <div class="row g-4">
+        {% for event in events %}
+          <div class="col-12 col-md-6 col-lg-4">
+            <article class="event-card">
+              <!-- Card Header / Visual Header -->
+              <div class="event-card-header">
+                <!-- Date Badge -->
+                <div class="date-badge">
+                  <div class="date-badge-month">{{ event.event_date|date:"M" }}</div>
+                  <div class="date-badge-day">{{ event.event_date|date:"j" }}</div>
+                </div>
+
+                <!-- Strategy / Early Bird Pill -->
+                <div>
+                  {% if event.pricing_strategy == "early_bird" %}
+                    <span class="strategy-pill bg-warning text-dark fw-bold d-inline-flex align-items-center gap-1">
+                      <i class="bi bi-lightning-fill"></i> Early Bird
+                    </span>
+                  {% else %}
+                    <span class="strategy-pill bg-light bg-opacity-25 text-white border border-white border-opacity-25">
+                      Standard
+                    </span>
+                  {% endif %}
+                </div>
+              </div>
+
+              <!-- Card Body -->
+              <div class="p-4 d-flex flex-column flex-grow-1">
+                <!-- Title -->
+                <h5 class="card-title fw-bold mb-2">
+                  <a href="{% url 'events:detail' event.pk %}" class="text-decoration-none text-dark">
+                    {{ event.name }}
+                  </a>
+                </h5>
+
+                <!-- Location & Time Info -->
+                <div class="mb-3 d-flex flex-column gap-1 text-muted small">
+                  <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-geo-alt-fill text-danger"></i>
+                    <span><strong>{{ event.venue }}</strong>, {{ event.city }}</span>
+                  </div>
+                  <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-calendar-event text-primary"></i>
+                    <span>{{ event.event_date }} at {{ event.start_time }}</span>
+                  </div>
+                </div>
+
+                <!-- Description Excerpt -->
+                <p class="card-text text-secondary small flex-grow-1 mb-3">
+                  {{ event.description|truncatewords:20 }}
+                </p>
+
+                <!-- Organizer & Capacity Info -->
+                <div class="d-flex justify-content-between align-items-center small text-muted pt-2 border-top mb-3">
+                  <span class="d-inline-flex align-items-center gap-1">
+                    <i class="bi bi-person"></i> {{ event.organizer.username }}
+                  </span>
+                  <span class="d-inline-flex align-items-center gap-1">
+                    <i class="bi bi-grid"></i> {{ event.seat_map_rows }}&times;{{ event.seats_per_row }} seats
+                  </span>
+                </div>
+
+                <!-- Pricing & CTA Row -->
+                <div class="d-flex justify-content-between align-items-center mt-auto pt-2">
+                  <div>
+                    {% if event.pricing_strategy == "early_bird" and event.early_bird_price %}
+                      <div class="d-flex align-items-baseline gap-1">
+                        <span class="fs-5 fw-bold text-success">${{ event.early_bird_price }}</span>
+                        <span class="text-muted text-decoration-line-through small">${{ event.base_price }}</span>
+                      </div>
+                      <span class="text-success small fw-medium" style="font-size: 0.75rem;">Early-bird price</span>
+                    {% else %}
+                      <div class="fs-5 fw-bold text-primary">${{ event.base_price }}</div>
+                      <span class="text-muted small" style="font-size: 0.75rem;">Base ticket price</span>
+                    {% endif %}
+                  </div>
+
+                  <a href="{% url 'events:detail' event.pk %}" class="btn btn-outline-primary btn-sm fw-semibold d-inline-flex align-items-center gap-1">
+                    <span>Reserve Seats</span>
+                    <i class="bi bi-arrow-right-short"></i>
+                  </a>
+                </div>
+              </div>
+            </article>
+          </div>
+        {% endfor %}
+      </div>
+
+      <!-- Bottom View All Button -->
+      <div class="text-center mt-5">
+        <a href="{% url 'events:list' %}" class="btn btn-outline-dark px-4 py-2 fw-semibold d-inline-flex align-items-center gap-2">
+          <i class="bi bi-collection"></i>
+          <span>Explore All Events &amp; Listings</span>
+        </a>
+      </div>
+
+    {% else %}
+      <!-- Sensible Empty State -->
+      <div class="empty-state-card shadow-sm my-4">
+        <div class="empty-state-icon">
+          <i class="bi bi-calendar-x"></i>
+        </div>
+        <h3 class="fw-bold mb-2">No Upcoming Events Found</h3>
+        <p class="text-muted mx-auto mb-4" style="max-width: 480px;">
+          There are currently no upcoming events scheduled in the system.
+          Check back soon for new announcements, or explore our complete event catalog.
+        </p>
+        <div class="d-flex justify-content-center flex-wrap gap-2">
+          <a href="{% url 'events:list' %}" class="btn btn-primary d-inline-flex align-items-center gap-2">
+            <i class="bi bi-grid"></i>
+            <span>Browse All Events</span>
+          </a>
+          {% if user.is_authenticated and user.role == "organizer" %}
+            <a href="{% url 'events:create' %}" class="btn btn-outline-primary d-inline-flex align-items-center gap-2">
+              <i class="bi bi-plus-circle"></i>
+              <span>Create the First Event</span>
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+<!-- Why Choose TicketFlow Section -->
+<section class="py-5 bg-white border-top border-bottom">
+  <div class="container py-3">
+    <div class="text-center max-w-700 mx-auto mb-5">
+      <span class="text-primary fw-bold text-uppercase small letter-spacing-1">Built For Reliability</span>
+      <h2 class="fw-bold mt-1 mb-2">Engineered for Seamless Ticket Booking</h2>
+      <p class="text-muted">Everything you need for transparent event discovery, seat holds, and instant confirmations.</p>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-md-4">
+        <div class="feature-box">
+          <div class="feature-icon-circle">
+            <i class="bi bi-aspect-ratio"></i>
+          </div>
+          <h5 class="fw-bold mb-2">Interactive Seat Selection</h5>
+          <p class="text-muted small mb-0">
+            Pick your exact seat by row and seat coordinate. Transparent seat category
+            assignments let you view applicable prices before confirming your hold.
+          </p>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="feature-box">
+          <div class="feature-icon-circle">
+            <i class="bi bi-stopwatch"></i>
+          </div>
+          <h5 class="fw-bold mb-2">Guaranteed Temporary Holds</h5>
+          <p class="text-muted small mb-0">
+            Seats you select are held exclusively for 5 minutes under database-backed concurrency locks,
+            ensuring no duplicate bookings while you pay.
+          </p>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="feature-box">
+          <div class="feature-icon-circle">
+            <i class="bi bi-shield-check"></i>
+          </div>
+          <h5 class="fw-bold mb-2">Transparent Refund Policy</h5>
+          <p class="text-muted small mb-0">
+            Need to change plans? Confirmed bookings cancelled more than 24 hours prior to the event
+            start time receive full automatic refunds.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Organizer Call-to-Action Banner -->
+<section class="py-5" style="background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);">
+  <div class="container py-4 text-white">
+    <div class="row align-items-center justify-content-between g-4">
+      <div class="col-lg-8">
+        <span class="badge bg-warning text-dark fw-bold mb-2 px-3 py-1 text-uppercase">For Event Creators</span>
+        <h2 class="fw-bold mb-2 text-white">Hosting a concert, conference, or performance?</h2>
+        <p class="text-secondary mb-0" style="max-width: 620px;">
+          TicketFlow provides complete event management: configure custom venue seat maps,
+          tier seat categories, schedule early-bird price periods, and track attendance.
+        </p>
+      </div>
+      <div class="col-lg-4 text-lg-end">
+        {% if user.is_authenticated and user.role == "organizer" %}
+          <a href="{% url 'events:organizer-list' %}" class="btn btn-primary btn-lg px-4 py-2 fw-semibold">
+            <i class="bi bi-speedometer2 me-1"></i> Organizer Portal
+          </a>
+        {% elif user.is_authenticated %}
+          <a href="{% url 'events:list' %}" class="btn btn-outline-light btn-lg px-4 py-2 fw-semibold">
+            <i class="bi bi-compass me-1"></i> Explore Events
+          </a>
+        {% else %}
+          <a href="{% url 'accounts:register' %}" class="btn btn-primary btn-lg px-4 py-2 fw-semibold">
+            <i class="bi bi-box-arrow-in-right me-1"></i> Join TicketFlow
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

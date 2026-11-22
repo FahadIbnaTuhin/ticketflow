@@ -1,8 +1,10 @@
+from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.http import HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_http_methods, require_POST
 from rest_framework import status
@@ -14,7 +16,7 @@ from accounts.permissions import role_required
 
 from .forms import EventForm
 from .forms import EventCategoryForm
-from .models import Event, EventCategory, Seat
+from .models import BookingSeat, Event, EventCategory, Seat, SeatHold
 from .pricing import calculate_seat_price
 from .services import (
     CustomerRequired,
@@ -22,6 +24,24 @@ from .services import (
     SeatUnavailable,
     create_seat_holds,
 )
+
+
+def home(request):
+    today = timezone.localdate()
+    upcoming_events = (
+        Event.objects.filter(event_date__gte=today)
+        .select_related("organizer")
+        .order_by("event_date", "start_time", "name")
+    )
+    return render(
+        request,
+        "home.html",
+        {
+            "events": upcoming_events,
+            "upcoming_events": upcoming_events,
+            "today": today,
+        },
+    )
 
 
 def event_list(request):
@@ -65,21 +85,92 @@ def event_list(request):
 
 def event_detail(request, pk):
     event = get_object_or_404(Event.objects.select_related("organizer"), pk=pk)
+
+    now = timezone.now()
+    # Lazily expire past-due active holds for this event
+    SeatHold.objects.filter(
+        seat__event=event,
+        status=SeatHold.Status.ACTIVE,
+        expires_at__lte=now,
+    ).update(status=SeatHold.Status.EXPIRED)
+
+    # Find held and booked seat IDs
+    held_seat_ids = set(
+        SeatHold.objects.filter(
+            seat__event=event,
+            status=SeatHold.Status.ACTIVE,
+            expires_at__gt=now,
+        ).values_list("seat_id", flat=True)
+    )
+    booked_seat_ids = set(
+        BookingSeat.objects.filter(
+            seat__event=event,
+            occupies_seat=True,
+        ).values_list("seat_id", flat=True)
+    )
+    unavailable_seat_ids = held_seat_ids | booked_seat_ids
+
     seat_rows = {}
-    for seat in event.seats.select_related("category").all():
+    seats_qs = event.seats.select_related("category").order_by("row_number", "seat_number")
+    total_seats = 0
+    available_seats = 0
+
+    for seat in seats_qs:
+        total_seats += 1
+        is_available = seat.pk not in unavailable_seat_ids
+        seat.is_available = is_available
+        if is_available:
+            available_seats += 1
+            seat.status = "available"
+        elif seat.pk in booked_seat_ids:
+            seat.status = "booked"
+        else:
+            seat.status = "held"
+
         try:
             seat.current_price = (
-                calculate_seat_price(event, category=seat.category)
+                calculate_seat_price(event, category=seat.category, at=now)
                 if seat.category_id
-                else None
+                else calculate_seat_price(event, category=None, at=now)
             )
         except ValidationError:
             seat.current_price = None
+
         seat_rows.setdefault(seat.row_number, []).append(seat)
+
+    # Categories breakdown with active pricing
+    categories_summary = []
+    for category in event.categories.all():
+        try:
+            cat_price = calculate_seat_price(event, category=category, at=now)
+        except ValidationError:
+            cat_price = category.base_price
+        categories_summary.append({
+            "category": category,
+            "current_price": cat_price,
+            "seats_count": event.seats.filter(category=category).count(),
+        })
+
+    is_early_bird_active = False
+    if event.pricing_strategy == Event.PricingStrategy.EARLY_BIRD:
+        if event.early_bird_starts_at and event.early_bird_ends_at:
+            is_early_bird_active = (
+                event.early_bird_starts_at <= now < event.early_bird_ends_at
+            )
+
     return render(
         request,
         "events/event_detail.html",
-        {"event": event, "seat_rows": seat_rows.items()},
+        {
+            "event": event,
+            "seat_rows": seat_rows.items(),
+            "total_seats": total_seats,
+            "available_seats": available_seats,
+            "unavailable_seats": total_seats - available_seats,
+            "categories_summary": categories_summary,
+            "is_early_bird_active": is_early_bird_active,
+            "payment_provider": getattr(settings, "PAYMENT_PROVIDER", "mock_success"),
+        },
     )
 
 

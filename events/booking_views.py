@@ -1,4 +1,8 @@
-from django.shortcuts import get_object_or_404
+from datetime import datetime, timedelta
+
+from django.contrib import messages
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -16,7 +20,7 @@ from .booking_services import (
     create_booking_from_holds,
     expire_due_bookings_for_customer,
 )
-from .models import Booking, Payment
+from .models import Booking, Payment, Refund
 from .payment_providers import PaymentProviderUnavailable
 from .payment_services import (
     InvalidIdempotencyKey,
@@ -115,8 +119,10 @@ def booking_list(request):
     bookings = (
         Booking.objects.filter(customer=request.user)
         .select_related("event")
-        .prefetch_related("booking_seats__seat", "status_history", "payments")
+        .prefetch_related("booking_seats__seat", "booking_seats__category", "status_history", "payments")
     )
+    if request.headers.get("Accept", "").startswith("text/html"):
+        return render(request, "events/booking_list.html", {"bookings": bookings})
     return Response([_serialize_booking(booking) for booking in bookings])
 
 
@@ -134,9 +140,38 @@ def booking_detail(request, booking_id):
     booking = get_object_or_404(
         Booking.objects.filter(customer=request.user)
         .select_related("event")
-        .prefetch_related("booking_seats__seat", "status_history", "payments"),
+        .prefetch_related("booking_seats__seat", "booking_seats__category", "status_history", "payments"),
         pk=booking_id,
     )
+    if request.headers.get("Accept", "").startswith("text/html"):
+        now = timezone.now()
+        local_start = datetime.combine(booking.event.event_date, booking.event.start_time)
+        event_start = timezone.make_aware(local_start, timezone.get_current_timezone())
+        is_refund_eligible = (
+            booking.status == Booking.Status.CONFIRMED
+            and (event_start - now) > timedelta(hours=24)
+        )
+        is_cancellable = booking.status in {
+            Booking.Status.HELD,
+            Booking.Status.PENDING_PAYMENT,
+            Booking.Status.CONFIRMED,
+        }
+        refund = (
+            Refund.objects.filter(payment__booking=booking)
+            .order_by("-created_at")
+            .first()
+        )
+        return render(
+            request,
+            "events/booking_detail.html",
+            {
+                "booking": booking,
+                "event": booking.event,
+                "is_cancellable": is_cancellable,
+                "is_refund_eligible": is_refund_eligible,
+                "refund": refund,
+            },
+        )
     return Response(_serialize_booking(booking))
 
 
@@ -207,17 +242,32 @@ def cancel_booking(request, booking_id):
             reason=reason[:2000],
         )
     except BookingAccessDenied as exc:
+        if request.headers.get("Accept", "").startswith("text/html"):
+            messages.error(request, str(exc))
+            return redirect("events:booking-list")
         return Response({"detail": str(exc)}, status=status.HTTP_403_FORBIDDEN)
     except BookingExpired as exc:
+        if request.headers.get("Accept", "").startswith("text/html"):
+            messages.error(request, str(exc))
+            return redirect("events:booking-detail", booking_id=booking.pk)
         return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
     except (BookingNotFound, InvalidBookingTransition) as exc:
+        if request.headers.get("Accept", "").startswith("text/html"):
+            messages.error(request, str(exc))
+            return redirect("events:booking-detail", booking_id=booking.pk)
         return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
     except PaymentProviderUnavailable as exc:
+        if request.headers.get("Accept", "").startswith("text/html"):
+            messages.error(request, str(exc))
+            return redirect("events:booking-detail", booking_id=booking.pk)
         return Response(
             {"detail": str(exc)},
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
     except BookingError as exc:
+        if request.headers.get("Accept", "").startswith("text/html"):
+            messages.error(request, str(exc))
+            return redirect("events:booking-detail", booking_id=booking.pk)
         return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
     response_data = _serialize_booking(booking)
@@ -225,4 +275,16 @@ def cancel_booking(request, booking_id):
         "issued": refund_issued,
         "amount": format(refund_amount, ".2f"),
     }
+    if request.headers.get("Accept", "").startswith("text/html"):
+        if refund_issued:
+            messages.success(
+                request,
+                f"Booking cancelled successfully. A full refund of ${format(refund_amount, '.2f')} has been issued."
+            )
+        else:
+            messages.info(
+                request,
+                "Booking cancelled. Under the cancellation policy, no refund is granted for cancellations within 24 hours of the event start time."
+            )
+        return redirect("events:booking-detail", booking_id=booking.pk)
     return Response(response_data)

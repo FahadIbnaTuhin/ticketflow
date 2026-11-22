@@ -1,45 +1,1126 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ event.name }} | TicketFlow</title>
-  </head>
-  <body>
-    <main>
-      <h1>{{ event.name }}</h1>
-      <p>{{ event.description }}</p>
-      <p>{{ event.venue }}, {{ event.city }}</p>
-      <p>{{ event.event_date }} at {{ event.start_time }}</p>
-      <p>{{ event.seat_map_rows }} rows, {{ event.seats_per_row }} seats per row</p>
-      <p>Pricing strategy: {{ event.get_pricing_strategy_display }}</p>
-      <p>Organized by {{ event.organizer.username }}</p>
-      {% if user == event.organizer %}
-        <p><a href="{% url 'events:update' event.pk %}">Edit event</a></p>
-        <p><a href="{% url 'events:category-list' event.pk %}">Manage seat categories</a></p>
-      {% endif %}
-      <h2>Seat map and pricing</h2>
-      {% for row_number, seats in seat_rows %}
-        <section aria-label="Row {{ row_number }}">
-          <h3>Row {{ row_number }}</h3>
-          <ul>
-            {% for seat in seats %}
-              <li>
-                Seat {{ seat.seat_number }} —
-                {{ seat.category.name|default:"Uncategorized" }} —
-                {% if seat.current_price is not None %}
-                  {{ seat.current_price }}
-                {% else %}
-                  Price unavailable
-                {% endif %}
-              </li>
-            {% endfor %}
-          </ul>
-        </section>
-      {% empty %}
-        <p>No seats are available for this event.</p>
-      {% endfor %}
-      <p><a href="{% url 'events:list' %}">Back to events</a></p>
-    </main>
-  </body>
-</html>
+{% extends "base.html" %}
+
+{% block title %}{{ event.name }} | TicketFlow{% endblock %}
+
+{% block extra_head %}
+<style>
+  .event-detail-hero {
+    background: radial-gradient(circle at top right, #1e1b4b 0%, #0f172a 75%, #020617 100%);
+    color: #ffffff;
+    padding: 2.75rem 0 2.25rem 0;
+    margin-bottom: 2rem;
+  }
+
+  .meta-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.8rem;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 50rem;
+    font-size: 0.85rem;
+    color: #e2e8f0;
+  }
+
+  .seat-map-card {
+    background: #ffffff;
+    border: 1px solid var(--tf-card-border);
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.05);
+  }
+
+  .stage-banner {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    border-radius: 0.75rem;
+    letter-spacing: 0.15em;
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  .seat-map-scroll-area {
+    overflow-x: auto;
+    padding: 1.5rem 0.5rem;
+  }
+
+  .seat-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 0.65rem;
+  }
+
+  .row-label {
+    width: 65px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #64748b;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .seat-btn {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease-in-out;
+    border: 1px solid #cbd5e1;
+    background-color: #ffffff;
+    color: #1e293b;
+    flex-shrink: 0;
+    user-select: none;
+  }
+
+  .seat-btn.seat-available:hover {
+    border-color: var(--tf-primary);
+    background-color: var(--tf-primary-subtle);
+    color: var(--tf-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(79, 70, 229, 0.2);
+  }
+
+  .seat-btn.seat-selected {
+    background-color: var(--tf-primary) !important;
+    border-color: var(--tf-primary) !important;
+    color: #ffffff !important;
+    transform: scale(1.08);
+    box-shadow: 0 4px 10px rgba(79, 70, 229, 0.4);
+  }
+
+  .seat-btn.seat-held-by-me {
+    background-color: #f59e0b !important;
+    border-color: #d97706 !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.4);
+  }
+
+  .seat-btn.seat-unavailable {
+    background-color: #f1f5f9;
+    border-color: #e2e8f0;
+    color: #cbd5e1;
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  .legend-box {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+
+  .legend-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    display: inline-block;
+  }
+
+  .legend-available {
+    background-color: #ffffff;
+    border: 1.5px solid #64748b;
+  }
+
+  .legend-selected {
+    background-color: var(--tf-primary);
+    border: 1.5px solid var(--tf-primary);
+  }
+
+  .legend-unavailable {
+    background-color: #e2e8f0;
+    border: 1.5px solid #cbd5e1;
+  }
+
+  .sticky-sidebar {
+    position: sticky;
+    top: 5rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<!-- Event Header Banner -->
+<header class="event-detail-hero">
+  <div class="container">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb small mb-2 text-white-50">
+        <li class="breadcrumb-item"><a href="{% url 'home' %}" class="text-white-50 text-decoration-none">Home</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'events:list' %}" class="text-white-50 text-decoration-none">Events</a></li>
+        <li class="breadcrumb-item active text-white" aria-current="page">{{ event.name }}</li>
+      </ol>
+    </nav>
+
+    <div class="row align-items-start justify-content-between g-4">
+      <div class="col-lg-8">
+        <div class="d-flex flex-wrap gap-2 mb-2">
+          {% if event.pricing_strategy == "early_bird" %}
+            <span class="badge bg-warning text-dark fw-bold d-inline-flex align-items-center gap-1">
+              <i class="bi bi-lightning-fill"></i> Early Bird Strategy
+            </span>
+            {% if is_early_bird_active %}
+              <span class="badge bg-success text-white fw-bold">Active Savings Window</span>
+            {% endif %}
+          {% else %}
+            <span class="badge bg-light bg-opacity-25 text-white border border-white border-opacity-25">
+              Standard Pricing Strategy
+            </span>
+          {% endif %}
+        </div>
+
+        <h1 class="display-6 fw-bold text-white mb-3">{{ event.name }}</h1>
+
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          <span class="meta-pill">
+            <i class="bi bi-geo-alt-fill text-danger"></i>
+            <span>{{ event.venue }}, {{ event.city }}</span>
+          </span>
+          <span class="meta-pill">
+            <i class="bi bi-calendar-event text-primary"></i>
+            <span>{{ event.event_date }} at {{ event.start_time }}</span>
+          </span>
+          <span class="meta-pill">
+            <i class="bi bi-person text-info"></i>
+            <span>Organized by {{ event.organizer.username }}</span>
+          </span>
+          <span class="meta-pill">
+            <i class="bi bi-grid-3x3 text-warning"></i>
+            <span>{{ total_seats }} seats capacity</span>
+          </span>
+          <span class="meta-pill">
+            <i class="bi bi-check-circle-fill text-success"></i>
+            <span>{{ available_seats }} seats available</span>
+          </span>
+        </div>
+      </div>
+
+      <div class="col-lg-4 text-lg-end">
+        {% if user == event.organizer %}
+          <div class="d-inline-flex flex-column gap-2 text-start bg-white bg-opacity-10 p-3 rounded-3 border border-white border-opacity-25">
+            <span class="small text-white-50 fw-semibold text-uppercase">Organizer Controls</span>
+            <div class="d-flex gap-2">
+              <a href="{% url 'events:update' event.pk %}" class="btn btn-sm btn-light fw-semibold">
+                <i class="bi bi-pencil-square me-1"></i>Edit event
+              </a>
+              <a href="{% url 'events:category-list' event.pk %}" class="btn btn-sm btn-outline-light fw-semibold">
+                <i class="bi bi-tags me-1"></i>Manage seat categories
+              </a>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="container pb-5">
+  <div class="row g-4">
+    <!-- Left Column: Description & Interactive Seat Map -->
+    <div class="col-lg-8">
+      <!-- Event Description Card -->
+      <div class="card border shadow-sm rounded-4 mb-4">
+        <div class="card-body p-4">
+          <h2 class="h5 fw-bold text-dark mb-3">About This Event</h2>
+          <p class="text-secondary mb-0 leading-relaxed">{{ event.description }}</p>
+        </div>
+      </div>
+
+      <!-- Seat Map & Selection Card -->
+      <div class="seat-map-card p-4">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 pb-3 border-bottom mb-4">
+          <div>
+            <h2 class="h5 fw-bold text-dark mb-1">Seat map and pricing</h2>
+            <p class="text-muted small mb-0">Select one or more available seats to review pricing and prepare your reservation.</p>
+          </div>
+          <!-- Seat Status Legend -->
+          <div class="d-flex flex-wrap align-items-center gap-3">
+            <div class="legend-box">
+              <span class="legend-dot legend-available"></span>
+              <span class="text-muted small">Available</span>
+            </div>
+            <div class="legend-box">
+              <span class="legend-dot legend-selected"></span>
+              <span class="text-muted small">Selected</span>
+            </div>
+            <div class="legend-box">
+              <span class="legend-dot legend-unavailable"></span>
+              <span class="text-muted small">Reserved / Unavailable</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stage Banner -->
+        <div class="stage-banner text-center py-2 mb-4 text-white">
+          <i class="bi bi-tv me-2"></i> STAGE / SCREEN AREA
+        </div>
+
+        <!-- Seat Grid Scroll Area -->
+        <div class="seat-map-scroll-area">
+          {% for row_number, seats in seat_rows %}
+            <section aria-label="Row {{ row_number }}" class="seat-row">
+              <span class="row-label">Row {{ row_number }}</span>
+              <div class="d-flex flex-nowrap gap-2">
+                {% for seat in seats %}
+                  <button
+                    type="button"
+                    class="seat-btn {% if not seat.is_available %}seat-unavailable{% else %}seat-available{% endif %}"
+                    data-seat-id="{{ seat.pk }}"
+                    data-seat-number="{{ seat.seat_number }}"
+                    data-row-number="{{ seat.row_number }}"
+                    data-category="{{ seat.category.name|default:'General' }}"
+                    data-price="{% if seat.current_price is not None %}{{ seat.current_price }}{% else %}0{% endif %}"
+                    {% if not seat.is_available %}disabled aria-disabled="true"{% endif %}
+                    title="Seat {{ seat.seat_number }} — {{ seat.category.name|default:'Uncategorized' }} — {% if seat.current_price is not None %}{{ seat.current_price }}{% else %}Price unavailable{% endif %}"
+                    aria-label="Row {{ seat.row_number }}, Seat {{ seat.seat_number }}, {{ seat.category.name|default:'General' }}, Price: {% if seat.current_price is not None %}${{ seat.current_price }}{% else %}unavailable{% endif %}"
+                  >
+                    {{ seat.seat_number }}
+                  </button>
+                {% endfor %}
+              </div>
+            </section>
+          {% empty %}
+            <div class="text-center py-5">
+              <i class="bi bi-grid-x fs-1 text-muted d-block mb-2"></i>
+              <p class="text-muted mb-0">No seats are available for this event.</p>
+            </div>
+          {% endfor %}
+        </div>
+
+        <div class="pt-3 border-top mt-3 d-flex justify-content-between align-items-center">
+          <a href="{% url 'events:list' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>Back to events
+          </a>
+          <span class="small text-muted">
+            <i class="bi bi-info-circle me-1"></i>{{ event.seat_map_rows }} rows, {{ event.seats_per_row }} seats per row
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Categories & Sticky Selected Summary -->
+    <div class="col-lg-4">
+      <div class="sticky-sidebar d-flex flex-column gap-4">
+        <!-- Seat Categories & Pricing Card -->
+        <div class="card border shadow-sm rounded-4">
+          <div class="card-header bg-white border-bottom p-3">
+            <h3 class="h6 fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+              <i class="bi bi-tags-fill text-primary"></i>
+              <span>Seat Categories &amp; Pricing</span>
+            </h3>
+          </div>
+          <div class="card-body p-3">
+            {% if categories_summary %}
+              <div class="d-flex flex-column gap-2">
+                {% for item in categories_summary %}
+                  <div class="p-2 rounded-3 border bg-light d-flex justify-content-between align-items-center">
+                    <div>
+                      <span class="fw-bold text-dark d-block">{{ item.category.name }}</span>
+                      <span class="small text-muted">{{ item.seats_count }} seats</span>
+                    </div>
+                    <div class="text-end">
+                      <span class="fs-6 fw-bold text-primary d-block">${{ item.current_price }}</span>
+                      {% if item.category.early_bird_price and is_early_bird_active %}
+                        <span class="small text-success fw-medium">Early bird active</span>
+                      {% else %}
+                        <span class="small text-muted">Base price: ${{ item.category.base_price }}</span>
+                      {% endif %}
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="p-2 rounded-3 border bg-light d-flex justify-content-between align-items-center">
+                <div>
+                  <span class="fw-bold text-dark d-block">General Admission</span>
+                  <span class="small text-muted">Default category</span>
+                </div>
+                <div class="text-end">
+                  <span class="fs-6 fw-bold text-primary d-block">${{ event.base_price }}</span>
+                  <span class="small text-muted">Base rate</span>
+                </div>
+              </div>
+            {% endif %}
+
+            <div class="mt-3 pt-2 border-top small text-muted">
+              <span>Pricing strategy: <strong>{{ event.get_pricing_strategy_display }}</strong></span>
+              {% if event.pricing_strategy == "early_bird" and event.early_bird_ends_at %}
+                <div class="mt-1 small">
+                  Early bird window: <strong>{{ event.early_bird_starts_at|date:"M j, Y" }}</strong> to <strong>{{ event.early_bird_ends_at|date:"M j, Y" }}</strong>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Selected Seats Summary Card -->
+        <div class="card border shadow-sm rounded-4">
+          <div class="card-header bg-white border-bottom p-3 d-flex justify-content-between align-items-center">
+            <h3 class="h6 fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+              <i class="bi bi-cart-check-fill text-primary"></i>
+              <span>Selected Seats</span>
+            </h3>
+            <span id="selected-count-badge" class="badge bg-primary rounded-pill">0</span>
+          </div>
+
+          <div class="card-body p-3">
+            <!-- Inline Alert for Feedback/Errors -->
+            <div id="hold-feedback-alert" class="alert d-none mb-3 py-2 small rounded-3" role="alert"></div>
+
+            <!-- Active Hold Notice Panel (shown when user holds seats) -->
+            <div id="active-hold-panel" class="d-none p-3 rounded-4 border bg-warning-subtle border-warning-subtle mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="badge bg-warning text-dark"><i class="bi bi-lock-fill me-1"></i>Seats Held</span>
+                <span id="sidebar-countdown-badge" class="badge bg-danger fw-bold"><i class="bi bi-clock-history me-1"></i><span id="countdown-timer-text">05:00</span></span>
+              </div>
+              <p class="small text-muted mb-2">
+                Your seats are reserved for 5 minutes. Complete your booking before time expires.
+              </p>
+              <button
+                type="button"
+                id="open-checkout-modal-btn"
+                class="btn btn-success w-100 py-2 fw-semibold shadow-sm d-flex align-items-center justify-content-center gap-2 mb-2"
+              >
+                <i class="bi bi-credit-card-fill"></i>
+                <span>Complete Booking &amp; Pay</span>
+              </button>
+            </div>
+
+            <!-- Empty state when no seats selected -->
+            <div id="no-seats-selected" class="text-center py-4 text-muted small">
+              <i class="bi bi-hand-index-thumb fs-2 d-block text-secondary mb-2"></i>
+              <span>Click on any available seat in the map to select it.</span>
+            </div>
+
+            <!-- List of selected seats -->
+            <div id="selected-seats-list" class="d-flex flex-column gap-2 mb-3"></div>
+
+            <!-- Total Price Calculation Row -->
+            <div class="pt-3 border-top d-flex justify-content-between align-items-baseline mb-3">
+              <span class="fw-semibold text-dark">Total Amount:</span>
+              <span id="total-price-display" class="fs-4 fw-bold text-primary">$0.00</span>
+            </div>
+
+            <!-- Action Button: Hold Seats -->
+            <button
+              type="button"
+              id="proceed-hold-btn"
+              class="btn btn-primary w-100 py-2 fw-semibold d-inline-flex align-items-center justify-content-center gap-2 shadow-sm"
+              disabled
+            >
+              <i class="bi bi-lock-fill"></i>
+              <span>Hold Seats (5-Min Reservation)</span>
+            </button>
+
+            <!-- Feature Guarantee Notice -->
+            <div class="p-2 bg-light rounded-3 small text-muted text-center mt-2 border">
+              <i class="bi bi-shield-check me-1 text-primary"></i>
+              <span>Temporary 5-minute hold locks selected seats in the database.</span>
+            </div>
+
+            <!-- Clear selection button -->
+            <button
+              type="button"
+              id="clear-selection-btn"
+              class="btn btn-sm btn-outline-secondary w-100 mt-2 d-none"
+            >
+              <i class="bi bi-trash3 me-1"></i>Clear all selected seats
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================================== -->
+<!-- Checkout & Payment Modal (Bootstrap 5)     -->
+<!-- ========================================== -->
+<div
+  class="modal fade"
+  id="checkoutModal"
+  tabindex="-1"
+  data-bs-backdrop="static"
+  data-bs-keyboard="false"
+  aria-labelledby="checkoutModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+      <!-- Modal Header -->
+      <div class="modal-header bg-dark text-white p-3 border-0">
+        <h5 class="modal-title fw-bold d-flex align-items-center gap-2" id="checkoutModalLabel">
+          <i class="bi bi-ticket-perforated-fill text-primary"></i>
+          <span>Checkout &amp; Booking</span>
+        </h5>
+        <div class="d-flex align-items-center gap-3">
+          <div id="modal-timer-badge" class="badge bg-danger fs-6 py-2 px-3 fw-bold">
+            <i class="bi bi-clock-history me-1"></i><span id="modal-countdown-timer">05:00</span>
+          </div>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="modal-body p-4">
+        <!-- Modal Error/Alert Box -->
+        <div id="modal-alert-box" class="alert d-none py-2 small rounded-3" role="alert"></div>
+
+        <!-- STEP 1: Review Held Seats & Confirm Booking -->
+        <div id="modal-step-1">
+          <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
+            <div>
+              <h6 class="fw-bold mb-0 text-dark">Step 1: Review Held Seats</h6>
+              <span class="text-muted small">Your seats are held in database. Confirm to proceed to payment.</span>
+            </div>
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-1">
+              {{ event.name }}
+            </span>
+          </div>
+
+          <div class="table-responsive mb-3">
+            <table class="table table-sm align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th scope="col" class="py-2">Seat</th>
+                  <th scope="col" class="py-2">Category</th>
+                  <th scope="col" class="py-2 text-end">Price</th>
+                </tr>
+              </thead>
+              <tbody id="modal-seats-tbody"></tbody>
+              <tfoot class="border-top">
+                <tr>
+                  <td colspan="2" class="py-2 text-end fw-bold text-dark">Total Amount Due:</td>
+                  <td id="modal-total-amount" class="py-2 text-end fw-bold text-primary fs-5">$0.00</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <div class="p-3 bg-light rounded-3 border mb-3 small text-muted">
+            <i class="bi bi-info-circle me-1 text-primary"></i>
+            <span>Confirming creates an official booking record with immutable price snapshots.</span>
+          </div>
+
+          <button
+            type="button"
+            id="btn-confirm-booking"
+            class="btn btn-primary btn-lg w-100 py-2 fw-bold shadow-sm d-flex align-items-center justify-content-center gap-2"
+          >
+            <i class="bi bi-check2-circle fs-5"></i>
+            <span>Confirm Booking &amp; Proceed to Payment</span>
+          </button>
+        </div>
+
+        <!-- STEP 2: Mock Payment Simulation -->
+        <div id="modal-step-2" class="d-none">
+          <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
+            <div>
+              <h6 class="fw-bold mb-0 text-dark">Step 2: Payment Simulation</h6>
+              <span class="text-muted small">Complete the transaction via the mock payment provider.</span>
+            </div>
+            <span class="badge bg-warning text-dark px-3 py-1 rounded-pill">
+              Pending Payment
+            </span>
+          </div>
+
+          <div class="card bg-light border rounded-3 p-3 mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="text-muted small">Booking Reference:</span>
+              <strong class="font-monospace text-dark" id="step2-booking-ref">#TF-...</strong>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="text-muted small">Event:</span>
+              <span class="fw-semibold text-dark">{{ event.name }}</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+              <span class="fw-bold text-dark fs-6">Total Due:</span>
+              <span class="fs-4 fw-bold text-primary" id="step2-total-amount">$0.00</span>
+            </div>
+          </div>
+
+          <!-- Sandbox Mock Notice -->
+          <div class="alert alert-info border-info d-flex align-items-start gap-3 rounded-3 mb-4">
+            <i class="bi bi-shield-check fs-4 text-info flex-shrink-0 mt-1"></i>
+            <div>
+              <strong class="d-block text-dark mb-1">Mock Payment Simulation Active</strong>
+              <span class="small text-muted">
+                This platform uses a simulated mock payment gateway (<code>{{ payment_provider|default:"mock_success" }}</code>).
+                No real credit card or financial transaction is processed. Every payment attempt is protected with an automatic <code>Idempotency-Key</code>.
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            id="btn-pay-mock"
+            class="btn btn-success btn-lg w-100 py-3 fw-bold shadow-sm d-flex align-items-center justify-content-center gap-2"
+          >
+            <i class="bi bi-credit-card-2-front-fill fs-5"></i>
+            <span>Pay <span id="pay-btn-amount">$0.00</span> (Simulated Payment)</span>
+          </button>
+        </div>
+
+        <!-- STEP 3: Confirmed Success View -->
+        <div id="modal-step-3" class="d-none text-center py-3">
+          <div class="mb-3">
+            <i class="bi bi-patch-check-fill text-success" style="font-size: 3.5rem;"></i>
+          </div>
+          <h4 class="fw-bold text-dark mb-1">Booking Confirmed!</h4>
+          <p class="text-muted small mb-4" style="max-width: 480px; margin: 0 auto;">
+            Your ticket reservation has been confirmed and paid. In-app and email confirmation notifications have been dispatched.
+          </p>
+
+          <div class="card bg-light border rounded-3 p-3 text-start mb-4 shadow-sm" style="max-width: 450px; margin: 0 auto;">
+            <div class="d-flex justify-content-between mb-2 small">
+              <span class="text-muted">Booking Reference:</span>
+              <strong class="font-monospace text-dark" id="confirmed-booking-id">#TF-...</strong>
+            </div>
+            <div class="d-flex justify-content-between mb-2 small">
+              <span class="text-muted">Payment Provider:</span>
+              <span class="badge bg-secondary">{{ payment_provider|default:"mock_success" }}</span>
+            </div>
+            <div class="d-flex justify-content-between mb-2 small">
+              <span class="text-muted">Payment Reference:</span>
+              <code id="confirmed-payment-ref">mock_...</code>
+            </div>
+            <div class="d-flex justify-content-between mb-2 small">
+              <span class="text-muted">Amount Paid:</span>
+              <strong class="text-primary" id="confirmed-amount-paid">$0.00</strong>
+            </div>
+            <div class="d-flex justify-content-between small pt-2 border-top">
+              <span class="text-muted">Status:</span>
+              <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Confirmed</span>
+            </div>
+          </div>
+
+          <div class="d-flex flex-column flex-sm-row justify-content-center gap-2">
+            <a id="btn-view-booking-detail" href="#" class="btn btn-primary px-4 py-2 fw-semibold">
+              <i class="bi bi-receipt me-1"></i>View Full Booking Details
+            </a>
+            <a href="{% url 'events:list' %}" class="btn btn-outline-secondary px-4 py-2">
+              <i class="bi bi-compass me-1"></i>Browse More Events
+            </a>
+          </div>
+        </div>
+
+        <!-- EXPIRED STATE: Hold Expired -->
+        <div id="modal-step-expired" class="d-none text-center py-4">
+          <div class="mb-3">
+            <i class="bi bi-hourglass-bottom text-danger" style="font-size: 3.5rem;"></i>
+          </div>
+          <h4 class="fw-bold text-dark mb-1">Reservation Expired</h4>
+          <p class="text-muted small mb-4" style="max-width: 460px; margin: 0 auto;">
+            Your 5-minute seat hold has expired. The seats have been released back into general inventory to allow other customers to book them.
+          </p>
+          <button
+            type="button"
+            class="btn btn-primary px-4 py-2 fw-semibold"
+            data-bs-dismiss="modal"
+            id="btn-reselect-expired"
+          >
+            <i class="bi bi-arrow-repeat me-1"></i>Reselect Seats
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================================== -->
+<!-- Sign In Required Modal (for unauthenticated) -->
+<!-- ========================================== -->
+<div class="modal fade" id="authModal" tabindex="-1" aria-labelledby="authModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow rounded-4 p-3">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold text-dark d-flex align-items-center gap-2" id="authModalLabel">
+          <i class="bi bi-person-lock text-primary fs-4"></i>
+          <span>Customer Sign-In Required</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body py-3">
+        <p class="text-muted small mb-4">
+          To hold seats and complete bookings on TicketFlow, you must be signed in with a Customer account.
+        </p>
+        <div class="d-grid gap-2">
+          <a href="{% url 'accounts:login' %}?next={{ request.path }}" class="btn btn-primary py-2 fw-semibold">
+            <i class="bi bi-box-arrow-in-right me-1"></i>Sign In as Customer
+          </a>
+          <a href="{% url 'accounts:register' %}?next={{ request.path }}" class="btn btn-outline-secondary py-2">
+            <i class="bi bi-person-plus me-1"></i>Create New Account
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const isAuthenticated = {{ user.is_authenticated|yesno:"true,false" }};
+    const userRole = "{{ user.role|default:'' }}";
+    const eventId = {{ event.pk }};
+
+    const selectedSeats = new Map(); // seatId -> { seatNumber, rowNumber, category, price }
+    let activeHolds = []; // holds received from backend [{ id, seat_id, expires_at }]
+    let holdCountdownInterval = null;
+    let holdExpiresAt = null;
+    let currentBooking = null;
+
+    const seatButtons = document.querySelectorAll(".seat-btn.seat-available");
+    const selectedListEl = document.getElementById("selected-seats-list");
+    const noSeatsSelectedEl = document.getElementById("no-seats-selected");
+    const selectedCountBadge = document.getElementById("selected-count-badge");
+    const totalPriceDisplay = document.getElementById("total-price-display");
+    const proceedBtn = document.getElementById("proceed-hold-btn");
+    const clearBtn = document.getElementById("clear-selection-btn");
+    const feedbackAlert = document.getElementById("hold-feedback-alert");
+
+    // Sidebar active hold elements
+    const activeHoldPanel = document.getElementById("active-hold-panel");
+    const countdownTimerText = document.getElementById("countdown-timer-text");
+    const openCheckoutModalBtn = document.getElementById("open-checkout-modal-btn");
+
+    // Modal elements
+    const checkoutModalEl = document.getElementById("checkoutModal");
+    const checkoutModal = bootstrap.Modal.getOrCreateInstance(checkoutModalEl);
+    const authModalEl = document.getElementById("authModal");
+    const authModal = bootstrap.Modal.getOrCreateInstance(authModalEl);
+
+    const modalAlertBox = document.getElementById("modal-alert-box");
+    const modalCountdownTimer = document.getElementById("modal-countdown-timer");
+    const modalStep1 = document.getElementById("modal-step-1");
+    const modalStep2 = document.getElementById("modal-step-2");
+    const modalStep3 = document.getElementById("modal-step-3");
+    const modalStepExpired = document.getElementById("modal-step-expired");
+
+    const modalSeatsTbody = document.getElementById("modal-seats-tbody");
+    const modalTotalAmount = document.getElementById("modal-total-amount");
+    const btnConfirmBooking = document.getElementById("btn-confirm-booking");
+
+    const step2BookingRef = document.getElementById("step2-booking-ref");
+    const step2TotalAmount = document.getElementById("step2-total-amount");
+    const payBtnAmount = document.getElementById("pay-btn-amount");
+    const btnPayMock = document.getElementById("btn-pay-mock");
+
+    const confirmedBookingId = document.getElementById("confirmed-booking-id");
+    const confirmedPaymentRef = document.getElementById("confirmed-payment-ref");
+    const confirmedAmountPaid = document.getElementById("confirmed-amount-paid");
+    const btnViewBookingDetail = document.getElementById("btn-view-booking-detail");
+    const btnReselectExpired = document.getElementById("btn-reselect-expired");
+
+    function getCsrfToken() {
+      const cookieValue = document.cookie
+        .split("; ")
+        .find((row) => row.startsWith("csrftoken="))
+        ?.split("=")[1];
+      if (cookieValue) return cookieValue;
+      const input = document.querySelector("[name=csrfmiddlewaretoken]");
+      return input ? input.value : "";
+    }
+
+    function showFeedback(message, type = "danger") {
+      feedbackAlert.className = `alert alert-${type} py-2 small rounded-3 mb-3`;
+      feedbackAlert.textContent = message;
+      feedbackAlert.classList.remove("d-none");
+    }
+
+    function hideFeedback() {
+      feedbackAlert.classList.add("d-none");
+      feedbackAlert.textContent = "";
+    }
+
+    function showModalAlert(message, type = "danger") {
+      modalAlertBox.className = `alert alert-${type} py-2 small rounded-3 mb-3`;
+      modalAlertBox.textContent = message;
+      modalAlertBox.classList.remove("d-none");
+    }
+
+    function hideModalAlert() {
+      modalAlertBox.classList.add("d-none");
+      modalAlertBox.textContent = "";
+    }
+
+    function updateSummary() {
+      const count = selectedSeats.size;
+      selectedCountBadge.textContent = count;
+
+      if (count === 0 && activeHolds.length === 0) {
+        noSeatsSelectedEl.classList.remove("d-none");
+        selectedListEl.innerHTML = "";
+        totalPriceDisplay.textContent = "$0.00";
+        proceedBtn.disabled = true;
+        clearBtn.classList.add("d-none");
+        return;
+      }
+
+      noSeatsSelectedEl.classList.add("d-none");
+      clearBtn.classList.remove("d-none");
+      proceedBtn.disabled = activeHolds.length > 0;
+
+      let total = 0;
+      selectedListEl.innerHTML = "";
+
+      selectedSeats.forEach((data, seatId) => {
+        total += data.price;
+        const item = document.createElement("div");
+        item.className = "p-2 rounded-3 border bg-white d-flex justify-content-between align-items-center small shadow-sm";
+        item.innerHTML = `
+          <div>
+            <span class="fw-bold text-dark d-block">Row ${data.rowNumber}, Seat ${data.seatNumber}</span>
+            <span class="badge bg-light text-secondary border" style="font-size: 0.7rem;">${data.category}</span>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <span class="fw-bold text-primary">$${data.price.toFixed(2)}</span>
+            ${activeHolds.length === 0 ? `
+              <button type="button" class="btn btn-sm btn-link text-danger p-0 remove-seat-btn text-decoration-none" data-seat-id="${seatId}" title="Remove this seat">
+                <i class="bi bi-x-circle-fill fs-6"></i>
+              </button>
+            ` : ""}
+          </div>
+        `;
+        selectedListEl.appendChild(item);
+      });
+
+      totalPriceDisplay.textContent = `$${total.toFixed(2)}`;
+
+      if (activeHolds.length === 0) {
+        selectedListEl.querySelectorAll(".remove-seat-btn").forEach((btn) => {
+          btn.addEventListener("click", function () {
+            const id = this.getAttribute("data-seat-id");
+            toggleSeat(id);
+          });
+        });
+      }
+    }
+
+    function toggleSeat(seatId) {
+      if (activeHolds.length > 0) return; // Locked while holds are active
+      const btn = document.querySelector(`.seat-btn[data-seat-id="${seatId}"]`);
+      if (!btn || btn.disabled) return;
+
+      if (selectedSeats.has(seatId)) {
+        selectedSeats.delete(seatId);
+        btn.classList.remove("seat-selected");
+        btn.setAttribute("aria-pressed", "false");
+      } else {
+        const price = parseFloat(btn.getAttribute("data-price")) || 0;
+        selectedSeats.set(seatId, {
+          seatNumber: btn.getAttribute("data-seat-number"),
+          rowNumber: btn.getAttribute("data-row-number"),
+          category: btn.getAttribute("data-category"),
+          price: price,
+        });
+        btn.classList.add("seat-selected");
+        btn.setAttribute("aria-pressed", "true");
+      }
+      hideFeedback();
+      updateSummary();
+    }
+
+    seatButtons.forEach((btn) => {
+      btn.addEventListener("click", function () {
+        const seatId = this.getAttribute("data-seat-id");
+        toggleSeat(seatId);
+      });
+    });
+
+    if (clearBtn) {
+      clearBtn.addEventListener("click", function () {
+        if (activeHolds.length > 0) return;
+        selectedSeats.forEach((_, seatId) => {
+          const btn = document.querySelector(`.seat-btn[data-seat-id="${seatId}"]`);
+          if (btn) {
+            btn.classList.remove("seat-selected");
+            btn.setAttribute("aria-pressed", "false");
+          }
+        });
+        selectedSeats.clear();
+        hideFeedback();
+        updateSummary();
+      });
+    }
+
+    // Countdown Timer Logic
+    function startCountdown(expiresAt) {
+      if (holdCountdownInterval) clearInterval(holdCountdownInterval);
+      holdExpiresAt = expiresAt;
+
+      function tick() {
+        const now = Date.now();
+        const diffMs = holdExpiresAt - now;
+        if (diffMs <= 0) {
+          clearInterval(holdCountdownInterval);
+          handleHoldExpired();
+          return;
+        }
+
+        const totalSecs = Math.floor(diffMs / 1000);
+        const mins = Math.floor(totalSecs / 60);
+        const secs = totalSecs % 60;
+        const timeFormatted = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+
+        countdownTimerText.textContent = timeFormatted;
+        modalCountdownTimer.textContent = timeFormatted;
+      }
+
+      tick();
+      holdCountdownInterval = setInterval(tick, 1000);
+    }
+
+    function handleHoldExpired() {
+      countdownTimerText.textContent = "00:00";
+      modalCountdownTimer.textContent = "00:00";
+
+      // Transition modal to expired step
+      modalStep1.classList.add("d-none");
+      modalStep2.classList.add("d-none");
+      modalStep3.classList.add("d-none");
+      modalStepExpired.classList.remove("d-none");
+
+      // Mark held seats as released
+      activeHolds.forEach((h) => {
+        const btn = document.querySelector(`.seat-btn[data-seat-id="${h.seat_id}"]`);
+        if (btn) {
+          btn.classList.remove("seat-held-by-me", "seat-selected");
+        }
+      });
+      activeHolds = [];
+      activeHoldPanel.classList.add("d-none");
+      proceedBtn.disabled = true;
+      showFeedback("Your 5-minute hold has expired. The seats have been released.", "danger");
+    }
+
+    if (btnReselectExpired) {
+      btnReselectExpired.addEventListener("click", function () {
+        window.location.reload();
+      });
+    }
+
+    // 1. REAL SEAT HOLDING
+    if (proceedBtn) {
+      proceedBtn.addEventListener("click", async function () {
+        hideFeedback();
+
+        if (!isAuthenticated) {
+          authModal.show();
+          return;
+        }
+
+        if (userRole !== "customer") {
+          showFeedback("Only Customer accounts can hold and book seats. (Organizers manage events).", "warning");
+          return;
+        }
+
+        if (selectedSeats.size === 0) return;
+
+        proceedBtn.disabled = true;
+        proceedBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Reserving seats...`;
+
+        const seatIds = Array.from(selectedSeats.keys()).map((id) => parseInt(id, 10));
+
+        try {
+          const response = await fetch("{% url 'events:create-holds' event.pk %}", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRFToken": getCsrfToken(),
+            },
+            body: JSON.stringify({ seat_ids: seatIds }),
+          });
+
+          const data = await response.json();
+
+          if (response.status === 201) {
+            // Holds successfully created in database!
+            activeHolds = data.holds;
+            proceedBtn.innerHTML = `<i class="bi bi-lock-fill"></i><span>Seats Held</span>`;
+
+            // Mark held seats visually
+            activeHolds.forEach((h) => {
+              const btn = document.querySelector(`.seat-btn[data-seat-id="${h.seat_id}"]`);
+              if (btn) {
+                btn.classList.add("seat-held-by-me");
+              }
+            });
+
+            // Start 5-minute countdown (300 seconds from hold)
+            const firstHold = activeHolds[0];
+            const expiresAt = firstHold && firstHold.expires_at ? new Date(firstHold.expires_at).getTime() : Date.now() + 5 * 60 * 1000;
+            startCountdown(expiresAt);
+
+            // Populate Modal Step 1 (Order Review)
+            modalSeatsTbody.innerHTML = "";
+            let total = 0;
+            selectedSeats.forEach((d) => {
+              total += d.price;
+              const tr = document.createElement("tr");
+              tr.innerHTML = `
+                <td class="py-2 fw-semibold text-dark">Row ${d.rowNumber}, Seat ${d.seatNumber}</td>
+                <td class="py-2"><span class="badge bg-light text-secondary border">${d.category}</span></td>
+                <td class="py-2 text-end fw-bold text-dark">$${d.price.toFixed(2)}</td>
+              `;
+              modalSeatsTbody.appendChild(tr);
+            });
+            modalTotalAmount.textContent = `$${total.toFixed(2)}`;
+
+            // Show active hold panel in sidebar
+            activeHoldPanel.classList.remove("d-none");
+            clearBtn.classList.add("d-none");
+
+            // Open Checkout Modal to Step 1
+            modalStep1.classList.remove("d-none");
+            modalStep2.classList.add("d-none");
+            modalStep3.classList.add("d-none");
+            modalStepExpired.classList.add("d-none");
+            hideModalAlert();
+            checkoutModal.show();
+          } else if (response.status === 409) {
+            // Seat conflict!
+            showFeedback("Seat Conflict: One or more selected seats were just taken by another user. Updating seat map...", "danger");
+            setTimeout(() => window.location.reload(), 1500);
+          } else {
+            const errDetail = data.detail || "Failed to hold seats. Please try again.";
+            showFeedback(errDetail, "danger");
+            proceedBtn.disabled = false;
+            proceedBtn.innerHTML = `<i class="bi bi-lock-fill"></i><span>Hold Seats (5-Min Reservation)</span>`;
+          }
+        } catch (err) {
+          showFeedback("Network error reserving seats. Please try again.", "danger");
+          proceedBtn.disabled = false;
+          proceedBtn.innerHTML = `<i class="bi bi-lock-fill"></i><span>Hold Seats (5-Min Reservation)</span>`;
+        }
+      });
+    }
+
+    if (openCheckoutModalBtn) {
+      openCheckoutModalBtn.addEventListener("click", function () {
+        checkoutModal.show();
+      });
+    }
+
+    // 2. BOOKING CREATION
+    if (btnConfirmBooking) {
+      btnConfirmBooking.addEventListener("click", async function () {
+        hideModalAlert();
+
+        if (activeHolds.length === 0) {
+          showModalAlert("No active holds found. Please reselect seats.", "danger");
+          return;
+        }
+
+        btnConfirmBooking.disabled = true;
+        btnConfirmBooking.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Creating booking record...`;
+
+        try {
+          const holdIds = activeHolds.map((h) => h.id);
+          const response = await fetch("{% url 'events:booking-create' event.pk %}", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRFToken": getCsrfToken(),
+            },
+            body: JSON.stringify({ hold_ids: holdIds }),
+          });
+
+          const data = await response.json();
+
+          if (response.status === 201) {
+            currentBooking = data;
+            // Transition to Step 2: Payment Simulation
+            step2BookingRef.textContent = `#TF-${currentBooking.id}`;
+            step2TotalAmount.textContent = `$${currentBooking.total_price}`;
+            payBtnAmount.textContent = `$${currentBooking.total_price}`;
+
+            modalStep1.classList.add("d-none");
+            modalStep2.classList.remove("d-none");
+            hideModalAlert();
+          } else {
+            const errDetail = data.detail || "Could not create booking. Please try again.";
+            showModalAlert(errDetail, "danger");
+            btnConfirmBooking.disabled = false;
+            btnConfirmBooking.innerHTML = `<i class="bi bi-check2-circle fs-5"></i><span>Confirm Booking &amp; Proceed to Payment</span>`;
+          }
+        } catch (err) {
+          showModalAlert("Network error creating booking. Please try again.", "danger");
+          btnConfirmBooking.disabled = false;
+          btnConfirmBooking.innerHTML = `<i class="bi bi-check2-circle fs-5"></i><span>Confirm Booking &amp; Proceed to Payment</span>`;
+        }
+      });
+    }
+
+    // 3. CHECKOUT / MOCK PAYMENT
+    if (btnPayMock) {
+      btnPayMock.addEventListener("click", async function () {
+        hideModalAlert();
+
+        if (!currentBooking) {
+          showModalAlert("No active booking to pay for.", "danger");
+          return;
+        }
+
+        btnPayMock.disabled = true;
+        btnPayMock.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Processing simulated payment...`;
+
+        // Generate client-side idempotency key for mock payment
+        const idempotencyKey = "tf-pay-" + currentBooking.id + "-" + Date.now() + "-" + Math.random().toString(36).substring(2, 9);
+
+        try {
+          const response = await fetch(`/events/bookings/${currentBooking.id}/start-payment/`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRFToken": getCsrfToken(),
+              "Idempotency-Key": idempotencyKey,
+            },
+            body: JSON.stringify({}),
+          });
+
+          const data = await response.json();
+
+          if (response.status === 200 && data.payment && (data.payment.status === "succeeded" || data.payment.status === "success")) {
+            // Stop timer!
+            if (holdCountdownInterval) clearInterval(holdCountdownInterval);
+
+            // Populate Step 3
+            confirmedBookingId.textContent = `#TF-${currentBooking.id}`;
+            confirmedPaymentRef.textContent = data.payment.provider_reference || "MOCK-REF-123";
+            confirmedAmountPaid.textContent = `$${data.payment.amount}`;
+            btnViewBookingDetail.href = `/events/bookings/${currentBooking.id}/`;
+
+            // Transition to Step 3 Confirmed
+            modalStep2.classList.add("d-none");
+            modalStep3.classList.remove("d-none");
+            activeHoldPanel.classList.add("d-none");
+          } else if (response.status === 402) {
+            // Mock payment declined
+            showModalAlert("Payment Simulation Declined: The configured mock provider declined this payment. You may retry payment.", "warning");
+            btnPayMock.disabled = false;
+            btnPayMock.innerHTML = `<i class="bi bi-arrow-repeat fs-5 me-1"></i><span>Retry Payment ($${currentBooking.total_price})</span>`;
+          } else {
+            const errDetail = data.detail || "Payment simulation encountered an error.";
+            showModalAlert(errDetail, "danger");
+            btnPayMock.disabled = false;
+            btnPayMock.innerHTML = `<i class="bi bi-credit-card-2-front-fill fs-5"></i><span>Pay <span id="pay-btn-amount">$${currentBooking.total_price}</span> (Simulated Payment)</span>`;
+          }
+        } catch (err) {
+          showModalAlert("Network error processing mock payment. Please try again.", "danger");
+          btnPayMock.disabled = false;
+          btnPayMock.innerHTML = `<i class="bi bi-credit-card-2-front-fill fs-5"></i><span>Pay <span id="pay-btn-amount">$${currentBooking.total_price}</span> (Simulated Payment)</span>`;
+        }
+      });
+    }
+  });
+</script>
+{% endblock %}

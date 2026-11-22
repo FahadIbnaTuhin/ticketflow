@@ -1,28 +1,149 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Manage events | TicketFlow</title>
-  </head>
-  <body>
-    <main>
-      <h1>My events</h1>
-      <p><a href="{% url 'events:create' %}">Create an event</a></p>
+{% extends "base.html" %}
+
+{% block title %}Manage Events | TicketFlow Organizer{% endblock %}
+
+{% block extra_head %}
+<style>
+  .organizer-hero {
+    background: radial-gradient(circle at top right, #1e1b4b 0%, #0f172a 75%, #020617 100%);
+    color: #ffffff;
+    padding: 2.5rem 0 2rem 0;
+    margin-bottom: 2rem;
+  }
+
+  .org-event-card {
+    background: #ffffff;
+    border: 1px solid var(--tf-card-border);
+    border-radius: 1rem;
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .org-event-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 24px -4px rgba(15, 23, 42, 0.08);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Hero Banner -->
+<section class="organizer-hero">
+  <div class="container">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-2" style="font-size: 0.85rem;">
+        <li class="breadcrumb-item"><a href="{% url 'home' %}" class="text-white-50 text-decoration-none">Home</a></li>
+        <li class="breadcrumb-item active text-white" aria-current="page">Organizer Dashboard</li>
+      </ol>
+    </nav>
+
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+      <div>
+        <h1 class="h2 fw-bold mb-1 text-white d-flex align-items-center gap-2">
+          <i class="bi bi-calendar4-week text-warning"></i>
+          <span>My Events</span>
+        </h1>
+        <p class="text-white-50 mb-0 small">
+          Create, edit, and manage your events, seat maps, and pricing categories.
+        </p>
+      </div>
+
+      <div>
+        <a href="{% url 'events:create' %}" class="btn btn-primary fw-semibold shadow-sm d-inline-flex align-items-center gap-2">
+          <i class="bi bi-plus-circle-fill"></i>
+          <span>Create New Event</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Events Grid -->
+<div class="container pb-5">
+  {% if events %}
+    <div class="row g-4">
       {% for event in events %}
-        <article>
-          <h2><a href="{% url 'events:detail' event.pk %}">{{ event.name }}</a></h2>
-          <p>{{ event.city }} · {{ event.event_date }} at {{ event.start_time }}</p>
-          <a href="{% url 'events:update' event.pk %}">Edit</a>
-          <form method="post" action="{% url 'events:delete' event.pk %}">
-            {% csrf_token %}
-            <button type="submit">Delete</button>
-          </form>
-        </article>
-      {% empty %}
-        <p>You have not created any events yet.</p>
+        <div class="col-lg-6">
+          <div class="org-event-card p-4 h-100 d-flex flex-column justify-content-between">
+            <div>
+              <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-1">
+                  {{ event.city }}
+                </span>
+                <span class="badge bg-secondary-subtle text-secondary border rounded-pill">
+                  {{ event.get_pricing_strategy_display }}
+                </span>
+              </div>
+
+              <h2 class="h5 fw-bold text-dark mb-2">
+                <a href="{% url 'events:detail' event.pk %}" class="text-dark text-decoration-none hover-primary">
+                  {{ event.name }}
+                </a>
+              </h2>
+
+              <div class="d-flex flex-column gap-1 text-muted small mb-3">
+                <div class="d-flex align-items-center gap-2">
+                  <i class="bi bi-calendar-event text-primary"></i>
+                  <span>{{ event.event_date|date:"l, F j, Y" }} at {{ event.start_time|time:"g:i a" }}</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <i class="bi bi-geo-alt text-danger"></i>
+                  <span>{{ event.venue }}, {{ event.city }}</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <i class="bi bi-grid text-secondary"></i>
+                  <span>Capacity: {{ event.seat_map_rows }} rows × {{ event.seats_per_row }} seats ({{ event.seats.count }} total)</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <i class="bi bi-tags text-success"></i>
+                  <span>Categories: {{ event.categories.count }} configured (Base: ${{ event.base_price }})</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="pt-3 border-top d-flex flex-wrap align-items-center justify-content-between gap-2">
+              <div class="d-flex gap-2">
+                <a href="{% url 'events:detail' event.pk %}" class="btn btn-sm btn-outline-primary fw-medium">
+                  <i class="bi bi-eye me-1"></i>View Seat Map
+                </a>
+                <a href="{% url 'events:category-list' event.pk %}" class="btn btn-sm btn-outline-success fw-medium">
+                  <i class="bi bi-tags me-1"></i>Manage Categories
+                </a>
+                <a href="{% url 'events:update' event.pk %}" class="btn btn-sm btn-outline-secondary fw-medium">
+                  <i class="bi bi-pencil me-1"></i>Edit
+                </a>
+              </div>
+
+              <form method="post" action="{% url 'events:delete' event.pk %}" class="d-inline">
+                {% csrf_token %}
+                <button
+                  type="submit"
+                  class="btn btn-sm btn-outline-danger"
+                  onclick="return confirm('Are you sure you want to delete \'{{ event.name }}\'? This action cannot be undone.');"
+                >
+                  <i class="bi bi-trash3 me-1"></i>Delete
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
       {% endfor %}
-      <p><a href="{% url 'events:list' %}">Browse events</a></p>
-    </main>
-  </body>
-</html>
+    </div>
+  {% else %}
+    <div class="card border border-2 border-dashed rounded-4 p-5 text-center bg-white shadow-sm" style="max-width: 600px; margin: 0 auto;">
+      <div class="mb-3">
+        <i class="bi bi-calendar-plus fs-1 text-muted"></i>
+      </div>
+      <h2 class="h5 fw-bold text-dark mb-2">No events created yet</h2>
+      <p class="text-muted small mb-4">
+        Start by creating your first event with custom venue details, seat map grid dimensions, and pricing strategy.
+      </p>
+      <div>
+        <a href="{% url 'events:create' %}" class="btn btn-primary px-4 py-2 fw-semibold shadow-sm">
+          <i class="bi bi-plus-circle-fill me-1"></i>Create Your First Event
+        </a>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

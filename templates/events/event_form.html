@@ -1,19 +1,257 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ page_title }} | TicketFlow</title>
-  </head>
-  <body>
-    <main>
-      <h1>{{ page_title }}</h1>
-      <form method="post">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">Save event</button>
-      </form>
-      <p><a href="{% url 'events:organizer-list' %}">Cancel</a></p>
-    </main>
-  </body>
-</html>
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} | TicketFlow Organizer{% endblock %}
+
+{% block extra_head %}
+<style>
+  .form-hero {
+    background: radial-gradient(circle at top right, #1e1b4b 0%, #0f172a 75%, #020617 100%);
+    color: #ffffff;
+    padding: 2.5rem 0 2rem 0;
+    margin-bottom: 2rem;
+  }
+
+  .form-card {
+    background: #ffffff;
+    border: 1px solid var(--tf-card-border);
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.05);
+  }
+
+  .section-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #0f172a;
+    letter-spacing: -0.01em;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    margin-bottom: 1rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Hero Banner -->
+<section class="form-hero">
+  <div class="container">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-2" style="font-size: 0.85rem;">
+        <li class="breadcrumb-item"><a href="{% url 'home' %}" class="text-white-50 text-decoration-none">Home</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'events:organizer-list' %}" class="text-white-50 text-decoration-none">Organizer Dashboard</a></li>
+        <li class="breadcrumb-item active text-white" aria-current="page">{{ page_title }}</li>
+      </ol>
+    </nav>
+
+    <h1 class="h2 fw-bold mb-1 text-white d-flex align-items-center gap-2">
+      <i class="bi bi-calendar-plus text-primary"></i>
+      <span>{{ page_title }}</span>
+    </h1>
+    <p class="text-white-50 mb-0 small">
+      Configure your event details, seat map grid dimensions, and pricing strategy.
+    </p>
+  </div>
+</section>
+
+<!-- Event Form Content -->
+<div class="container pb-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <div class="form-card p-4 p-md-5">
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger rounded-3 mb-4" role="alert">
+              <div class="d-flex align-items-center gap-2 mb-1">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <strong class="small">Please correct the following errors:</strong>
+              </div>
+              <ul class="mb-0 small ps-3">
+                {% for error in form.non_field_errors %}
+                  <li>{{ error }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+
+          <!-- Section 1: Event Details -->
+          <div class="section-title d-flex align-items-center gap-2">
+            <i class="bi bi-info-circle text-primary"></i>
+            <span>Basic Event Information</span>
+          </div>
+
+          <div class="mb-3">
+            <label for="{{ form.name.id_for_label }}" class="form-label small fw-semibold text-dark">
+              Event Name <span class="text-danger">*</span>
+            </label>
+            {{ form.name }}
+            {% if form.name.errors %}
+              <div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>
+            {% endif %}
+          </div>
+
+          <div class="mb-3">
+            <label for="{{ form.description.id_for_label }}" class="form-label small fw-semibold text-dark">
+              Description <span class="text-danger">*</span>
+            </label>
+            {{ form.description }}
+            {% if form.description.errors %}
+              <div class="text-danger small mt-1">{{ form.description.errors.0 }}</div>
+            {% endif %}
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-7">
+              <label for="{{ form.venue.id_for_label }}" class="form-label small fw-semibold text-dark">
+                Venue <span class="text-danger">*</span>
+              </label>
+              {{ form.venue }}
+              {% if form.venue.errors %}
+                <div class="text-danger small mt-1">{{ form.venue.errors.0 }}</div>
+              {% endif %}
+            </div>
+            <div class="col-md-5">
+              <label for="{{ form.city.id_for_label }}" class="form-label small fw-semibold text-dark">
+                City <span class="text-danger">*</span>
+              </label>
+              {{ form.city }}
+              {% if form.city.errors %}
+                <div class="text-danger small mt-1">{{ form.city.errors.0 }}</div>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Section 2: Date & Schedule -->
+          <div class="section-title d-flex align-items-center gap-2">
+            <i class="bi bi-clock text-primary"></i>
+            <span>Date &amp; Schedule</span>
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label for="{{ form.event_date.id_for_label }}" class="form-label small fw-semibold text-dark">
+                Event Date <span class="text-danger">*</span>
+              </label>
+              {{ form.event_date }}
+              <div class="form-text small">Format: YYYY-MM-DD</div>
+              {% if form.event_date.errors %}
+                <div class="text-danger small mt-1">{{ form.event_date.errors.0 }}</div>
+              {% endif %}
+            </div>
+            <div class="col-md-6">
+              <label for="{{ form.start_time.id_for_label }}" class="form-label small fw-semibold text-dark">
+                Start Time <span class="text-danger">*</span>
+              </label>
+              {{ form.start_time }}
+              <div class="form-text small">Format: HH:MM:SS</div>
+              {% if form.start_time.errors %}
+                <div class="text-danger small mt-1">{{ form.start_time.errors.0 }}</div>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Section 3: Seat Map Grid -->
+          <div class="section-title d-flex align-items-center gap-2">
+            <i class="bi bi-grid-3x3 text-primary"></i>
+            <span>Seat Map Configuration</span>
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label for="{{ form.seat_map_rows.id_for_label }}" class="form-label small fw-semibold text-dark">
+                Number of Rows <span class="text-danger">*</span>
+              </label>
+              {{ form.seat_map_rows }}
+              <div class="form-text small">Grid rows (e.g. 5)</div>
+              {% if form.seat_map_rows.errors %}
+                <div class="text-danger small mt-1">{{ form.seat_map_rows.errors.0 }}</div>
+              {% endif %}
+            </div>
+            <div class="col-md-6">
+              <label for="{{ form.seats_per_row.id_for_label }}" class="form-label small fw-semibold text-dark">
+                Seats per Row <span class="text-danger">*</span>
+              </label>
+              {{ form.seats_per_row }}
+              <div class="form-text small">Seats in each row (e.g. 10)</div>
+              {% if form.seats_per_row.errors %}
+                <div class="text-danger small mt-1">{{ form.seats_per_row.errors.0 }}</div>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Section 4: Pricing & Strategy -->
+          <div class="section-title d-flex align-items-center gap-2">
+            <i class="bi bi-cash-stack text-primary"></i>
+            <span>Pricing Strategy</span>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label for="{{ form.pricing_strategy.id_for_label }}" class="form-label small fw-semibold text-dark">
+                Pricing Strategy <span class="text-danger">*</span>
+              </label>
+              {{ form.pricing_strategy }}
+              {% if form.pricing_strategy.errors %}
+                <div class="text-danger small mt-1">{{ form.pricing_strategy.errors.0 }}</div>
+              {% endif %}
+            </div>
+            <div class="col-md-6">
+              <label for="{{ form.base_price.id_for_label }}" class="form-label small fw-semibold text-dark">
+                Base Price ($) <span class="text-danger">*</span>
+              </label>
+              {{ form.base_price }}
+              {% if form.base_price.errors %}
+                <div class="text-danger small mt-1">{{ form.base_price.errors.0 }}</div>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Early Bird Options (Conditional) -->
+          <div class="card bg-light border p-3 rounded-3 mb-4">
+            <div class="small fw-bold text-dark mb-2">Early Bird Configuration (Optional / If Early Bird Selected):</div>
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label for="{{ form.early_bird_price.id_for_label }}" class="form-label small fw-semibold text-muted">
+                  Early Bird Price ($)
+                </label>
+                {{ form.early_bird_price }}
+                {% if form.early_bird_price.errors %}
+                  <div class="text-danger small mt-1">{{ form.early_bird_price.errors.0 }}</div>
+                {% endif %}
+              </div>
+              <div class="col-md-4">
+                <label for="{{ form.early_bird_starts_at.id_for_label }}" class="form-label small fw-semibold text-muted">
+                  Window Start (YYYY-MM-DD HH:MM:SS)
+                </label>
+                {{ form.early_bird_starts_at }}
+                {% if form.early_bird_starts_at.errors %}
+                  <div class="text-danger small mt-1">{{ form.early_bird_starts_at.errors.0 }}</div>
+                {% endif %}
+              </div>
+              <div class="col-md-4">
+                <label for="{{ form.early_bird_ends_at.id_for_label }}" class="form-label small fw-semibold text-muted">
+                  Window End (YYYY-MM-DD HH:MM:SS)
+                </label>
+                {{ form.early_bird_ends_at }}
+                {% if form.early_bird_ends_at.errors %}
+                  <div class="text-danger small mt-1">{{ form.early_bird_ends_at.errors.0 }}</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <!-- Form Actions -->
+          <div class="d-flex align-items-center justify-content-between pt-3 border-top">
+            <a href="{% url 'events:organizer-list' %}" class="btn btn-outline-secondary">
+              <i class="bi bi-x-circle me-1"></i>Cancel
+            </a>
+            <button type="submit" class="btn btn-primary px-4 py-2 fw-semibold shadow-sm">
+              <i class="bi bi-check-circle me-1"></i>Save Event
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
