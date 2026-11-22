@@ -69,6 +69,9 @@ jobs:
       - name: Check migration consistency
         run: python manage.py makemigrations --check --dry-run
 
+      - name: Collect static files
+        run: python manage.py collectstatic --noinput
+
       - name: Run test suite with coverage on PostgreSQL
         run: pytest --cov=events --cov=accounts --cov=health --cov-report=term --cov-report=xml
 
